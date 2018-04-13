@@ -23,5 +23,6 @@ bool complex_is_zero(gsl_complex v);
 bool complex_equal(gsl_complex a, gsl_complex b);
 bool double_is_zero(double v);
 bool double_equal(double a, double b);
+int vector_complex_positions_swap(gsl_vector_complex* v, int sigs_num, int sig1, int sig2);
 
 #endif

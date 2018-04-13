@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <assert.h>
+#include <math.h>
+#include <memory.h>
+#include <stdlib.h>
 
 #include "Util.h"
 
@@ -146,4 +149,46 @@ bool double_is_zero(double v) {
 
 bool double_equal(double a, double b) {
     return double_is_zero(a - b);
+}
+
+int vector_complex_positions_swap(gsl_vector_complex* v, int sigs_num, int sig1, int sig2) {
+    assert(sig1 < sigs_num && sig2 < sigs_num);
+    assert(pow(2, sigs_num) == v->size);
+    if (sig1 == sig2) {
+        return 0;
+    }
+    bool* swapped = (bool*)malloc(sizeof(bool) * v->size);
+    memset(swapped, 0, sizeof(bool) * v->size);
+    for (int i = 0; i < (int)v->size; ++i) {
+        // sigs are high-to-low
+        if (swapped[i]) {
+            continue;
+        }
+        int sig1_pos = (i >> (sigs_num - 1 - sig1)) & 0x1;
+        int sig2_pos = (i >> (sigs_num - 1 - sig2)) & 0x1;
+        if (sig1_pos == sig2_pos) {
+            // don't need to swap
+            swapped[i] = true;
+            continue;
+        }
+        int target_i = 0;
+        for (int j = 0; j < sigs_num; ++j) {
+            if (j == sig1) {
+                target_i |= sig2_pos << (sigs_num - 1 - j);
+            }
+            else if (j == sig2) {
+                target_i |= sig1_pos << (sigs_num - 1 - j);
+            }
+            else {
+                target_i |= i & (0x1 << (sigs_num - 1 - j));
+            }
+        }
+        gsl_complex temp = gsl_vector_complex_get(v, i);
+        gsl_vector_complex_set(v, i, gsl_vector_complex_get(v, target_i));
+        gsl_vector_complex_set(v, target_i, temp);
+        swapped[i] = true;
+        swapped[target_i] = true;
+    }
+    free(swapped);
+    return 0;
 }

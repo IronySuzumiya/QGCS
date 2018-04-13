@@ -143,8 +143,8 @@ unentangling:
         for (int i = 0; i < old_qureg->qupairs_num - 1; ++i) {
             new_qupairs[i] = old_qureg->qupairs[i];
         }
-        old_qureg->qupairs[old_qureg->qupairs_num - 1] = (Qupair*)malloc(sizeof(Qupair));
-        Qupair* new_qupair = old_qureg->qupairs[old_qureg->qupairs_num - 1];
+        new_qupairs[old_qureg->qupairs_num - 1] = (Qupair*)malloc(sizeof(Qupair));
+        Qupair* new_qupair = new_qupairs[old_qureg->qupairs_num - 1];
         new_qupair->index = old_qureg->qupairs_num - 1;
         new_qupair->qureg = old_qureg;
         new_qupair->qubits_num = 1;
@@ -152,7 +152,8 @@ unentangling:
         new_qupair->qubits_indices[0] = unentangled_qubit->index;
         new_qupair->states_num = 2;
         new_qupair->state = gsl_vector_complex_calloc(2);
-        gsl_vector_complex_set(new_qupair->state, 0, gsl_complex_rect(1.0, 0));
+        gsl_vector_complex_set(new_qupair->state, 0, alpha);
+        gsl_vector_complex_set(new_qupair->state, 1, beta);
         unentangled_qubit->qupair = new_qupair;
         // Only delete old qupair array, don't touch the elements within
         free(old_qureg->qupairs);
@@ -299,51 +300,196 @@ static void apply_CNOT(Qubit** qubits, int qubits_num) {
             break;
         }
     }
+    gsl_vector_complex* combined_inputs;
+    int states_num;
+    // Only used in the second situation
+    int all_involved_qubits_num;
+    int* order;
+    int qupairs_num;
+    int product_qubits_num;
 
     // If all qubits are not entangled
     if (all_product) {
         // Make up the combined vector and apply CNOT gate on it
-        gsl_vector_complex* combined_inputs = Kronecker_product_vv(qubits[0]->state, qubits[1]->state);
+        combined_inputs = Kronecker_product_vv(qubits[0]->state, qubits[1]->state);
         for (int i = 2; i < qubits_num; ++i) {
             gsl_vector_complex* temp = Kronecker_product_vv(combined_inputs, qubits[i]->state);
             gsl_vector_complex_free(combined_inputs);
             combined_inputs = temp;
         }
-        int states_num = combined_inputs->size;
+        states_num = combined_inputs->size;
         gsl_complex temp = gsl_vector_complex_get(combined_inputs, states_num - 2);
         gsl_vector_complex_set(combined_inputs, states_num - 2, gsl_vector_complex_get(combined_inputs, states_num - 1));
         gsl_vector_complex_set(combined_inputs, states_num - 1, temp);
-#ifdef _QGCS_DEBUG
-        print_vector_complex(combined_inputs);
+    }
+    else {
+        //   Here maybe some shuffles applied to qubits, because some of them are in their own qupairs
+        // in which there are some spaces between their ids or they have different order compared to
+        // that in the inputs.
+        // Work out how many independent qupairs there are, and store them
+        Qupair** qupairs = (Qupair**)malloc(sizeof(Qupair*) * qubits_num);
+        qupairs_num = 0;
+        for (int i = 0; i < qubits_num; ++i) {
+            if (qubits[i]->entangled) {
+                bool exist = false;
+                for (int j = 0; j < qupairs_num; ++j) {
+                    if (qupairs[j] == qubits[i]->qupair) {
+                        exist = true;
+                        break;
+                    }
+                }
+                if (!exist) {
+                    qupairs[qupairs_num] = qubits[i]->qupair;
+                    ++qupairs_num;
+                }
+            }
+        }
+        // Find out the order of qubits in the combined inputs
+        all_involved_qubits_num = 0;
+        product_qubits_num = 0;
+        for (int i = 0; i < qupairs_num; ++i) {
+            all_involved_qubits_num += qupairs[i]->qubits_num;
+        }
+        for (int i = 0; i < qubits_num; ++i) {
+            if (!qubits[i]->entangled) {
+                ++all_involved_qubits_num;
+                ++product_qubits_num;
+            }
+        }
+        order = (int*)malloc(sizeof(int) * all_involved_qubits_num);
+        Qubit** product_qubits = (Qubit**)malloc(sizeof(Qubit*) * product_qubits_num);
+        int index = 0;
+        int product_qubits_index = 0;
+        for (int i = 0; i < qupairs_num; ++i) {
+            for (int j = 0; j < qupairs[i]->qubits_num; ++j) {
+                order[index] = qupairs[i]->qubits_indices[j];
+                ++index;
+            }
+        }
+        for (int i = 0; i < qubits_num; ++i) {
+            if (!qubits[i]->entangled) {
+                order[index] = qubits[i]->index;
+                ++index;
+                product_qubits[product_qubits_index] = qubits[i];
+                ++product_qubits_index;
+            }
+        }
+        // Prepare the combined inputs
+        if (qupairs_num > 1) {
+            combined_inputs = Kronecker_product_vv(qupairs[0]->state, qupairs[1]->state);
+            for (int i = 2; i < qupairs_num; ++i) {
+                gsl_vector_complex* temp = Kronecker_product_vv(combined_inputs, qupairs[i]->state);
+                gsl_vector_complex_free(combined_inputs);
+                combined_inputs = temp;
+            }
+        }
+        else {
+            combined_inputs = gsl_vector_complex_calloc(qupairs[0]->states_num);
+            gsl_vector_complex_memcpy(combined_inputs, qupairs[0]->state);
+        }
+        if (product_qubits_num > 0) {
+            gsl_vector_complex* another_combined_inputs;
+            if (product_qubits_num > 1) {
+                another_combined_inputs = Kronecker_product_vv(product_qubits[0]->state, product_qubits[1]->state);
+                for (int i = 2; i < qupairs_num; ++i) {
+                    gsl_vector_complex* temp = Kronecker_product_vv(another_combined_inputs, product_qubits[i]->state);
+                    gsl_vector_complex_free(another_combined_inputs);
+                    another_combined_inputs = temp;
+                }
+            }
+            else {
+                another_combined_inputs = gsl_vector_complex_calloc(2);
+                gsl_vector_complex_memcpy(another_combined_inputs, product_qubits[0]->state);
+            }
+            gsl_vector_complex* temp = Kronecker_product_vv(combined_inputs, another_combined_inputs);
+            gsl_vector_complex_free(combined_inputs);
+            gsl_vector_complex_free(another_combined_inputs);
+            combined_inputs = temp;
+        }
+        // Shuffle the combined inputs to make the order right
+        for (int i = 0; i < qubits_num; ++i) {
+#if _QGCS_DEBUG
+            bool success = false;
 #endif
+            for (int j = i; j < all_involved_qubits_num; ++j) {
+                if (order[j] == qubits[i]->index) {
+                    vector_complex_positions_swap(combined_inputs, all_involved_qubits_num, j, i);
+                    int temp = order[j];
+                    order[j] = order[i];
+                    order[i] = temp;
+#if _QGCS_DEBUG
+                    success = true;
+#endif
+                }
+            }
+#if _QGCS_DEBUG
+            assert(success);
+#endif
+        }
+        states_num = combined_inputs->size;
+        if (all_involved_qubits_num > qubits_num) {
+            // There are outside qubits involved. Put them to the end of the order array and apply I on them.
+            int ancillas_num = all_involved_qubits_num - qubits_num;
+            int ancillas_states_num = (int)pow(2, ancillas_num);
+            for (int i = 0; i < ancillas_states_num; ++i) {
+                gsl_complex temp1 = gsl_vector_complex_get(combined_inputs, states_num - 2 * ancillas_states_num + i);
+                gsl_complex temp2 = gsl_vector_complex_get(combined_inputs, states_num - ancillas_states_num + i);
+                gsl_vector_complex_set(combined_inputs, states_num - ancillas_states_num + i, temp1);
+                gsl_vector_complex_set(combined_inputs, states_num - 2 * ancillas_states_num + i, temp2);
+            }
+        }
+        else {
+            gsl_complex temp = gsl_vector_complex_get(combined_inputs, states_num - 2);
+            gsl_vector_complex_set(combined_inputs, states_num - 2, gsl_vector_complex_get(combined_inputs, states_num - 1));
+            gsl_vector_complex_set(combined_inputs, states_num - 1, temp);
+        }
+        free(qupairs);
+        free(product_qubits);
+    }
 
-        // Prepare a new qupair list for the qureg
-        int new_qupairs_num = qureg->qupairs_num - qubits_num + 1;
-        Qupair** new_qupairs = (Qupair**)malloc(sizeof(Qupair*) * new_qupairs_num);
-        // Mark those "clean" qupairs, which means they are not relevant to the inputs
-        bool* dirty = (bool*)malloc(sizeof(bool) * qureg->qupairs_num);
-        memset(dirty, 0, sizeof(bool) * qureg->qupairs_num);
+    // After story ;-)
+
+    int new_qupairs_num;
+    // Prepare a new qupair list for the qureg
+    if (all_product) {
+        new_qupairs_num = qureg->qupairs_num - qubits_num + 1;
+    }
+    else {
+        new_qupairs_num = qureg->qupairs_num - qupairs_num - product_qubits_num + 1;
+    }
+    Qupair** new_qupairs = (Qupair**)malloc(sizeof(Qupair*) * new_qupairs_num);
+    // Mark those "clean" qupairs, which means they are not relevant to the inputs
+    bool* dirty = (bool*)malloc(sizeof(bool) * qureg->qupairs_num);
+    memset(dirty, 0, sizeof(bool) * qureg->qupairs_num);
+    if (all_product) {
         for (int i = 0; i < qubits_num; ++i) {
             dirty[qubits[i]->qupair->index] = true;
         }
-        // Delete "dirty qupairs and move "clean" qupairs to the new right place
-        int index = 0;
-        for (int i = 0; i < qureg->qupairs_num; ++i) {
-            if (!dirty[i]) {
-                new_qupairs[index] = qureg->qupairs[i];
-                new_qupairs[index]->index = index;
-                ++index;
-            }
-            else {
-                free_qupair(qureg->qupairs[i]);
-            }
+    }
+    else {
+        for (int i = 0; i < all_involved_qubits_num; ++i) {
+            dirty[qureg->qubits[order[i]]->qupair->index] = true;
         }
-        free(dirty);
-        // the new qupair which combines all the inputs
-        Qupair* new_qupair = (Qupair*)malloc(sizeof(Qupair));
-        new_qupairs[index] = new_qupair;
-        new_qupair->index = index;
-        new_qupair->qureg = qureg;
+    }
+    // Delete "dirty qupairs and move "clean" qupairs to the new right place
+    int new_qupair_index = 0;
+    for (int i = 0; i < qureg->qupairs_num; ++i) {
+        if (!dirty[i]) {
+            new_qupairs[new_qupair_index] = qureg->qupairs[i];
+            new_qupairs[new_qupair_index]->index = new_qupair_index;
+            ++new_qupair_index;
+        }
+        else {
+            free_qupair(qureg->qupairs[i]);
+        }
+    }
+    free(dirty);
+    // the new qupair which combines all the inputs
+    Qupair* new_qupair = (Qupair*)malloc(sizeof(Qupair));
+    new_qupairs[new_qupair_index] = new_qupair;
+    new_qupair->index = new_qupair_index;
+    new_qupair->qureg = qureg;
+    if (all_product) {
         new_qupair->qubits_num = qubits_num;
         new_qupair->qubits_indices = (int*)malloc(sizeof(int) * qubits_num);
         for (int i = 0; i < qubits_num; ++i) {
@@ -351,52 +497,30 @@ static void apply_CNOT(Qubit** qubits, int qubits_num) {
             qubits[i]->qupair = new_qupair;
             qubits[i]->entangled = true;
         }
-        new_qupair->states_num = states_num;
-        new_qupair->state = combined_inputs;
-        // Only delete the qupair list and do not touch the content (Qupair*) in it
-        free(qureg->qupairs);
-        qureg->qupairs = new_qupairs;
-        qureg->qupairs_num = new_qupairs_num;
-
-        //   Consider the situation that no any input become entangled after this CNOT operation,
-        // this design may look quite low-efficient, because I assume all of them become entangled
-        // and delete their old qupairs and combine them directly. That's true, but actually this
-        // is only the first version, or, say, a demo. So, for simplicity, the way I deal with this
-        // problem is kind of acceptable.
-        check_entanglement(new_qupair);
     }
     else {
-        // Find all entangled qubits in the qureg
-        bool* entangled = (bool*)malloc(sizeof(bool) * qureg->qubits_num);
-        memset(entangled, 0, sizeof(bool) * qureg->qubits_num);
-        for (int i = 0; i < qubits_num; ++i) {
-            if (qubits[i]->entangled) {
-                for (int j = 0; j < qubits[i]->qupair->qubits_num; ++j) {
-                    entangled[qubits[i]->qupair->qubits_indices[j]] = true;
-                }
-            }
+        new_qupair->qubits_num = all_involved_qubits_num;
+        new_qupair->qubits_indices = (int*)malloc(sizeof(int) * all_involved_qubits_num);
+        for (int i = 0; i < all_involved_qubits_num; ++i) {
+            new_qupair->qubits_indices[i] = order[i];
+            qureg->qubits[order[i]]->qupair = new_qupair;
+            qureg->qubits[order[i]]->entangled = true;
         }
-        // Check if all these entangled qubits are in the inputs of this gate
-        for (int i = 0; i < qureg->qubits_num; ++i) {
-            if (entangled[i]) {
-                bool not_in = true;
-                for (int i = 0; i < qubits_num; ++i) {
-                    if (qubits[i]->index == i) {
-                        not_in = false;
-                        break;
-                    }
-                }
-                // Just for now. The code will be over-complicated in this situation.
-                assert(!not_in);
-            }
-        }
-        //   Here maybe some shuffles applied to qubits, because some of them are in their own qupairs
-        // in which there are some spaces between their ids or they have different order compared to
-        // that in the inputs.
-        //   Quite tricky to deal with.
-        // TODO
-        assert(false);
+        free(order);
     }
+    new_qupair->states_num = states_num;
+    new_qupair->state = combined_inputs;
+    // Only delete the qupair list and do not touch the content (Qupair*) in it
+    free(qureg->qupairs);
+    qureg->qupairs = new_qupairs;
+    qureg->qupairs_num = new_qupairs_num;
+
+    //   Consider the situation that no any input become entangled after this CNOT operation,
+    // this design may look quite low-efficient, because I assume all of them become entangled
+    // and delete their old qupairs and combine them directly. That's true, but actually this
+    // is only the first version, or, say, a demo. So, for simplicity, the way I deal with this
+    // problem is kind of acceptable.
+    check_entanglement(new_qupair);
 }
 
 static void apply_CNOT_dagger(Qubit** qubits, int qubits_num) {
