@@ -7,21 +7,20 @@
 int main() {
     gate_init();
 
-    Qureg* qureg = allocate_qureg(5);
+    Qureg* qureg = allocate_qureg(3);
+    for (int i = 0; i < 2; ++i) {
+        H.apply(qureg->qubits[i]);
+    }
+    CNOT.apply(qureg->qubits, 3);
     print_qureg(qureg);
 
-    H.apply(qureg->qubits[0]);
-    print_qubit(qureg->qubits[0]);
-    print_qupair(qureg->qubits[0]->qupair);
+    X.apply(qureg->qubits[2]);
+    print_qureg(qureg);
 
-    gsl_matrix_complex* identity = gsl_matrix_complex_calloc(2, 2);
-    gsl_matrix_complex_set_identity(identity);
-    gsl_matrix_complex* IH = Kronecker_product(identity, H.matrix);
+    CNOT.apply(qureg->qubits, 3);
+    print_qureg(qureg);
 
-    printf("Kronecker Product of Hadamard Matrix and Identity Matrix:\n");
-    print_matrix_complex(IH);
-
-    //RESULT_AS_INT(qureg->qubits[0]->value);
+    free_qureg(qureg);
 
     return 0;
 }

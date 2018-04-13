@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdarg.h>
+#include <assert.h>
 
 #include "Util.h"
 
@@ -55,18 +56,31 @@ int print_with_indent(int indent, char* string, ...) {
 }
 
 int print_complex(gsl_complex value) {
-    printf("%.3f + %.3fi", GSL_REAL(value), GSL_IMAG(value));
+    double real = GSL_REAL(value);
+    double imag = GSL_IMAG(value);
+    if (complex_is_zero(value)) {
+        printf("0");
+    }
+    else if(double_is_zero(real)) {
+        printf("%.3fi", imag);
+    }
+    else if (double_is_zero(imag)) {
+        printf("%.3f", real);
+    }
+    else {
+        printf("%.3f + %.3fi", real, imag);
+    }
     return 0;
 }
 
 int print_matrix_complex(gsl_matrix_complex* m) {
     for (size_t i = 0; i < m->size1; ++i) {
-        printf("| ");
+        printf(" ");
         for (size_t j = 0; j < m->size2; ++j) {
             print_complex(gsl_matrix_complex_get(m, i, j));
             printf("  ");
         }
-        printf(" |\n");
+        printf(" \n");
     }
     return 0;
 }
@@ -77,7 +91,7 @@ int print_vector_complex(gsl_vector_complex* v) {
         print_complex(gsl_vector_complex_get(v, i));
         printf("  ");
     }
-    printf(" |T");
+    printf(" |");
     return 0;
 }
 
@@ -102,4 +116,34 @@ int print_qureg(Qureg* qureg) {
     }
     printf("\n");
     return 0;
+}
+
+gsl_vector_complex* matrix_vector_complex_mul(gsl_matrix_complex* m, gsl_vector_complex* v) {
+    assert(m->size2 == v->size);
+    gsl_vector_complex* temp = gsl_vector_complex_calloc(v->size);
+    gsl_blas_zgemv(CblasNoTrans, gsl_complex_rect(1.0, 0), m, v, gsl_complex_rect(0, 0), temp);
+    return temp;
+}
+
+gsl_matrix_complex* matrix_matrix_complex_mul(gsl_matrix_complex* m1, gsl_matrix_complex* m2) {
+    assert(m1->size2 == m2->size1);
+    gsl_matrix_complex* temp = gsl_matrix_complex_calloc(m1->size1, m2->size2);
+    gsl_blas_zgemm(CblasNoTrans, CblasNoTrans, gsl_complex_rect(1.0, 0), m1, m2, gsl_complex_rect(0, 0), temp);
+    return temp;
+}
+
+bool complex_is_zero(gsl_complex v) {
+    return GSL_REAL(v) > -EPSILON && GSL_REAL(v) < EPSILON && GSL_IMAG(v) > -EPSILON && GSL_IMAG(v) < EPSILON;
+}
+
+bool complex_equal(gsl_complex a, gsl_complex b) {
+    return complex_is_zero(gsl_complex_sub(a, b));
+}
+
+bool double_is_zero(double v) {
+    return v > -EPSILON && v < EPSILON;
+}
+
+bool double_equal(double a, double b) {
+    return double_is_zero(a - b);
 }

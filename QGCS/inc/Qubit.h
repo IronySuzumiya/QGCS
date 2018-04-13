@@ -41,7 +41,13 @@ typedef struct _qureg {
     Qupair** qupairs;
 } Qureg;
 
+Qubit* allocate_qubit(void);
 Qureg* allocate_qureg(int qubits_num);
+// not complete delete
+int free_qubit(Qubit* qubit);
+// not complete delete
+int free_qupair(Qupair* qupair);
+int free_qureg(Qureg* qureg);
 int qubit_index_in_qupair(Qubit* qubit, Qupair* qupair);
 
 #endif

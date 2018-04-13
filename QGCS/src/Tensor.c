@@ -21,7 +21,7 @@ gsl_matrix_complex* Kronecker_product_mm(gsl_matrix_complex* a, gsl_matrix_compl
     return result;
 }
 
-gsl_matrix_complex* Kronecker_product_vv(gsl_vector_complex* a, gsl_vector_complex* b) {
+gsl_vector_complex* Kronecker_product_vv(gsl_vector_complex* a, gsl_vector_complex* b) {
     int size = a->size * b->size;
     gsl_vector_complex* result = gsl_vector_complex_calloc(size);
     gsl_complex ca;

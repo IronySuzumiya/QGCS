@@ -4,7 +4,7 @@
 
 #include "Qubit.h"
 
-static Qubit* allocate_qubit() {
+Qubit* allocate_qubit() {
     Qubit* qubit = (Qubit*)malloc(sizeof(Qubit));
     memset(qubit, 0, sizeof(Qubit));
     qubit->state = gsl_vector_complex_calloc(2);
@@ -14,10 +14,6 @@ static Qubit* allocate_qubit() {
 
 Qureg* allocate_qureg(int qubits_num) {
     Qureg* qureg = (Qureg*)malloc(sizeof(Qureg));
-    #ifdef _QGCS_DEBUG
-    printf("Qureg allocated\n");
-    #endif
-
     qureg->qubits_num = qubits_num;
     qureg->qupairs_num = qubits_num;
 
@@ -28,9 +24,6 @@ Qureg* allocate_qureg(int qubits_num) {
         qubits[i]->qureg = qureg;
     }
     qureg->qubits = qubits;
-    #ifdef _QGCS_DEBUG
-    printf("Qubit list allocated\n");
-    #endif
 
     Qupair** qupairs = (Qupair**)malloc(sizeof(Qupair*) * qureg->qupairs_num);
     for(int i = 0; i < qureg->qupairs_num; ++i) {
@@ -46,11 +39,35 @@ Qureg* allocate_qureg(int qubits_num) {
         qubits[i]->qupair = qupairs[i];
     }
     qureg->qupairs = qupairs;
-    #ifdef _QGCS_DEBUG
-    printf("Qupair list allocated\n");
-    #endif
 
     return qureg;
+}
+
+int free_qubit(Qubit* qubit) {
+    gsl_vector_complex_free(qubit->state);
+    free(qubit);
+    qubit = NULL;
+    return 0;
+}
+
+int free_qupair(Qupair* qupair) {
+    free(qupair->qubits_indices);
+    gsl_vector_complex_free(qupair->state);
+    free(qupair);
+    return 0;
+}
+
+int free_qureg(Qureg* qureg) {
+    for (int i = 0; i < qureg->qubits_num; ++i) {
+        free_qubit(qureg->qubits[i]);
+    }
+    free(qureg->qubits);
+    for (int i = 0; i < qureg->qupairs_num; ++i) {
+        free_qupair(qureg->qupairs[i]);
+    }
+    free(qureg->qupairs);
+    free(qureg);
+    return 0;
 }
 
 int qubit_index_in_qupair(Qubit* qubit, Qupair* qupair) {
