@@ -9,6 +9,7 @@
 
 typedef void(*gate_apply)(Qubit*);
 typedef void(*controlled_gate_apply)(Qubit**, int);
+typedef void(*measurement_apply)(Qubit*, unsigned int);
 
 typedef struct _gate {
     gate_apply apply;
@@ -22,9 +23,15 @@ typedef struct _controlled_gate {
     controlled_gate_apply apply_dagger;
 } ControlledGate;
 
+typedef struct _measurement {
+    measurement_apply apply;
+    gsl_matrix_complex** operators;
+} Measurement;
+
 extern Gate H;
 extern Gate X;
 extern ControlledGate CNOT;
+extern Measurement PauliZ_M;
 
 int gate_init(void);
 

@@ -17,17 +17,20 @@ FILE* __cdecl __iob_func(unsigned i) {
 static int print_qubit_with_indent(Qubit* qubit, int indent) {
     print_with_indent(indent, "index: %d\n", qubit->index);
     print_with_indent(indent, "qupair index: %d\n", qubit->qupair->index);
-    if(!qubit->entangled) {
+    if(!qubit->entangled && !qubit->measured) {
         print_with_indent(indent, "state: (");
         print_complex(gsl_vector_complex_get(qubit->state, 0));
         printf(")|0> + (");
         print_complex(gsl_vector_complex_get(qubit->state, 1));
         printf(")|1>\n");
-    } else {
+    }
+    else if(qubit->entangled) {
         print_with_indent(indent, "<entangled>\n");
     }
-    print_with_indent(indent, "measured: %s\n", BOOL_AS_STRING(qubit->measured));
-    print_with_indent(indent, "value: %s\n", RESULT_AS_STRING(qubit->value));
+    else if (qubit->measured) {
+        print_with_indent(indent, "<measured>\n");
+        print_with_indent(indent, "value: %s\n", RESULT_AS_STRING(qubit->value));
+    }
     return 0;
 }
 
@@ -111,6 +114,7 @@ int print_qureg(Qureg* qureg) {
     printf("qubits:\n");
     for(int i = 0; i < qureg->qubits_num; ++i) {
         print_qubit_with_indent(qureg->qubits[i], 1);
+        printf("\n");
     }
     printf("number of qupairs: %d\n", qureg->qupairs_num);
     printf("qupairs:\n");

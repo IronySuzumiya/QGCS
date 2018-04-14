@@ -225,6 +225,7 @@ Gate H = {
 };
 
 static void apply_X(Qubit* qubit) {
+    assert(!qubit->measured);
     if (!qubit->entangled) {
         gsl_complex temp = gsl_vector_complex_get(qubit->state, 0);
         gsl_vector_complex_set(qubit->state, 0, gsl_vector_complex_get(qubit->state, 1));
@@ -286,10 +287,10 @@ Gate X = {
 };
 
 static void apply_CNOT(Qubit** qubits, int qubits_num) {
-    // For Simplicity
     Qureg* qureg = qubits[0]->qureg;
     for (int i = 1; i < qubits_num; ++i) {
         assert(qubits[i]->qureg == qureg);
+        assert(!qubits[i]->measured);
     }
 
     // As usual, check entanglement first
@@ -408,23 +409,17 @@ static void apply_CNOT(Qubit** qubits, int qubits_num) {
         }
         // Shuffle the combined inputs to make the order right
         for (int i = 0; i < qubits_num; ++i) {
-#if _QGCS_DEBUG
             bool success = false;
-#endif
             for (int j = i; j < all_involved_qubits_num; ++j) {
                 if (order[j] == qubits[i]->index) {
                     vector_complex_positions_swap(combined_inputs, all_involved_qubits_num, j, i);
                     int temp = order[j];
                     order[j] = order[i];
                     order[i] = temp;
-#if _QGCS_DEBUG
                     success = true;
-#endif
                 }
             }
-#if _QGCS_DEBUG
             assert(success);
-#endif
         }
         states_num = combined_inputs->size;
         if (all_involved_qubits_num > qubits_num) {
@@ -532,6 +527,90 @@ ControlledGate CNOT = {
     apply_CNOT_dagger
 };
 
+static void apply_Pauli_M(Qubit* qubit, unsigned int seed) {
+    if (qubit->measured) {
+        // Repeated measurements do not change the result
+        return;
+    }
+    srand(seed);
+    if (!qubit->entangled) {
+        double p_zero = gsl_complex_abs2(gsl_vector_complex_get(qubit->state, 0));
+        double p_one = gsl_complex_abs2(gsl_vector_complex_get(qubit->state, 1));
+        assert(double_equal(p_zero + p_one, 1.0));
+        // For now
+        qubit->value = double_is_zero(p_zero) ? One
+            : double_is_zero(p_one) ? Zero
+            : rand() / (RAND_MAX + 1.0) < p_zero ? Zero : One;
+        qubit->measured = true;
+    }
+    else {
+        int sig = qubit_index_in_qupair(qubit, qubit->qupair);
+        assert(sig != -1);
+        int* indices_where_qubit_is_zero = (int*)malloc(sizeof(int) * qubit->qupair->states_num / 2);
+        int index_zero = 0;
+        int* indices_where_qubit_is_one = (int*)malloc(sizeof(int) * qubit->qupair->states_num / 2);
+        int index_one = 0;
+        for (int i = 0; i < qubit->qupair->states_num; ++i) {
+            if (i & (0x1 << (qubit->qupair->qubits_num - 1 - sig))) {
+                indices_where_qubit_is_one[index_one] = i;
+                ++index_one;
+            }
+            else {
+                indices_where_qubit_is_zero[index_zero] = i;
+                ++index_zero;
+            }
+        }
+        assert(index_one == index_zero && index_one == qubit->qupair->states_num / 2);
+        double p_zero = 0.0;
+        double p_one = 0.0;
+        for (int i = 0; i < qubit->qupair->states_num / 2; ++i) {
+            p_zero += gsl_complex_abs2(gsl_vector_complex_get(qubit->qupair->state, indices_where_qubit_is_zero[i]));
+            p_one += gsl_complex_abs2(gsl_vector_complex_get(qubit->qupair->state, indices_where_qubit_is_one[i]));
+        }
+        assert(double_equal(p_zero + p_one, 1.0));
+        // For now
+        qubit->value = double_is_zero(p_zero) ? One
+            : double_is_zero(p_one) ? Zero
+            : rand() / (RAND_MAX + 1.0) < p_zero ? Zero : One;
+        qubit->measured = true;
+        qubit->entangled = false;
+        gsl_vector_complex* phi_prime = gsl_vector_complex_calloc(qubit->qupair->states_num / 2);
+        if (qubit->value == Zero) {
+            for (int i = 0; i < qubit->qupair->states_num / 2; ++i) {
+                gsl_complex v = gsl_vector_complex_get(qubit->qupair->state, indices_where_qubit_is_zero[i]);
+                v = gsl_complex_div(v, gsl_complex_rect(sqrt(p_zero), 0));
+                gsl_vector_complex_set(phi_prime, i, v);
+            }
+        }
+        else {
+            for (int i = 0; i < qubit->qupair->states_num / 2; ++i) {
+                gsl_complex v = gsl_vector_complex_get(qubit->qupair->state, indices_where_qubit_is_one[i]);
+                v = gsl_complex_div(v, gsl_complex_rect(sqrt(p_one), 0));
+                gsl_vector_complex_set(phi_prime, i, v);
+            }
+        }
+        int* new_qubits_indices = (int*)malloc(sizeof(int) * (qubit->qupair->qubits_num - 1));
+        for (int i = 0; i < sig; ++i) {
+            new_qubits_indices[i] = qubit->qupair->qubits_indices[i];
+        }
+        for (int i = sig + 1; i < qubit->qupair->qubits_num; ++i) {
+            new_qubits_indices[i - 1] = qubit->qupair->qubits_indices[i];
+        }
+        free(qubit->qupair->qubits_indices);
+        qubit->qupair->qubits_indices = new_qubits_indices;
+        --qubit->qupair->qubits_num;
+        qubit->qupair->states_num /= 2;
+        qubit->qupair->state = phi_prime;
+
+        check_entanglement(qubit->qupair);
+    }
+}
+
+Measurement PauliZ_M = {
+    apply_Pauli_M,
+    NULL
+};
+
 int gate_init() {
     H.matrix = gsl_matrix_complex_calloc(2, 2);
     gsl_matrix_complex_set_all(H.matrix, gsl_complex_rect(1.0 / sqrt(2), 0));
@@ -546,6 +625,12 @@ int gate_init() {
 
     X.dagger_matrix = gsl_matrix_complex_calloc(2, 2);
     gsl_matrix_complex_memcpy(X.dagger_matrix, X.matrix);
+
+    PauliZ_M.operators = (gsl_matrix_complex**)malloc(sizeof(gsl_matrix_complex*) * 2);
+    PauliZ_M.operators[0] = gsl_matrix_complex_calloc(2, 2);
+    gsl_matrix_complex_set(PauliZ_M.operators[0], 0, 0, gsl_complex_rect(1.0, 0));
+    PauliZ_M.operators[1] = gsl_matrix_complex_calloc(2, 2);
+    gsl_matrix_complex_set(PauliZ_M.operators[1], 1, 1, gsl_complex_rect(1.0, 0));
 
     return 0;
 }
