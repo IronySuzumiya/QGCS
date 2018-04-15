@@ -6,6 +6,8 @@
 #include "gsl/gsl_complex_math.h"
 #include "gsl/gsl_vector.h"
 
+#define PI 3.14159
+
 typedef enum _result {
     Unknown,
     Zero,
@@ -41,7 +43,6 @@ typedef struct _qureg {
     Qupair** qupairs;
 } Qureg;
 
-Qubit* allocate_qubit(void);
 Qureg* allocate_qureg(int qubits_num);
 // not complete delete
 int free_qubit(Qubit* qubit);
@@ -49,5 +50,6 @@ int free_qubit(Qubit* qubit);
 int free_qupair(Qupair* qupair);
 int free_qureg(Qureg* qureg);
 int qubit_index_in_qupair(Qubit* qubit, Qupair* qupair);
+int results_as_int(Qubit** qubits, int qubits_num);
 
 #endif

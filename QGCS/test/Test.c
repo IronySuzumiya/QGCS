@@ -1,9 +1,11 @@
+#include <stdio.h>
+#include <time.h>
+
 #include "Qubit.h"
 #include "Util.h"
 #include "Gate.h"
 #include "Tensor.h"
-#include <stdio.h>
-#include <time.h>
+#include "Algorithm.h"
 
 int test_entanglement() {
     Qureg* qureg = allocate_qureg(3);
@@ -44,9 +46,30 @@ int test_measurement() {
     
     print_qureg(qureg);
 
-    PauliZ_M.apply(qureg->qubits[1], 10000);
+    Z.apply(qureg->qubits[1]);
 
     print_qureg(qureg);
+
+    PauliZ_M.apply(qureg->qubits[1]);
+
+    print_qureg(qureg);
+
+    return 0;
+}
+
+int test_find_minimum() {
+    int database_size = 64;
+    int* database = (int*)malloc(sizeof(int) * database_size);
+    printf("Database is: ");
+    for (int i = 0; i < database_size; ++i) {
+        database[i] = rand() % 100;
+        printf("%d ", database[i]);
+    }
+    printf("\n");
+
+    int min_index = find_minimum(database, database_size);
+    printf("Minimum's index is: %d\n", min_index);
+    printf("Minimum's value is: %d\n", database[min_index]);
 
     return 0;
 }
@@ -65,10 +88,49 @@ int test_vector_complex_positions_swap() {
     return 0;
 }
 
-int main() {
-    gate_init();
+int test_possibility() {
+    int repeat_times = 1000;
+    int zero_count = 0;
+    for (int i = 0; i < 1000; ++i) {
+        Qureg* qureg = allocate_qureg(1);
+        H.apply(qureg->qubits[0]);
+        PauliZ_M.apply(qureg->qubits[0]);
+        zero_count += qureg->qubits[0]->value == Zero ? 1 : 0;
+        free_qureg(qureg);
+    }
+    printf("Repeat times = %d\n", repeat_times);
+    printf("Zero count = %d\n", zero_count);
 
-    test_measurement();
+    return 0;
+}
+
+int test_H() {
+    Qureg* qureg = allocate_qureg(3);
+    apply_to_each(X.apply, qureg->qubits, qureg->qubits_num);
+    CZ.apply(qureg->qubits, qureg->qubits_num);
+    print_qureg(qureg);
+    apply_to_each(X.apply, qureg->qubits, qureg->qubits_num);
+    print_qureg(qureg);
+    Qubit** control = (Qubit**)malloc(sizeof(Qubit*) * 2);
+    for (int i = 0; i < qureg->qubits_num - 1; ++i) {
+        control[i] = qureg->qubits[i];
+    }
+    apply_to_each(H.apply, control, qureg->qubits_num - 1);
+    print_qureg(qureg);
+    CNOT.apply(qureg->qubits, qureg->qubits_num);
+    print_qureg(qureg);
+    apply_to_each(H.apply, qureg->qubits, qureg->qubits_num);
+    print_qureg(qureg);
+    free_qureg(qureg);
+    free(control);
+
+    return 0;
+}
+
+int main() {
+    gate_init(2333);
+    //gate_init((unsigned int)time(NULL));
+    test_find_minimum();
 
     return 0;
 }

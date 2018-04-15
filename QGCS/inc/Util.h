@@ -11,6 +11,7 @@
 #define BOOL_AS_STRING(b) ((b)? "True" : "False")
 
 int print_with_indent(int indent, char* string, ...);
+int print_double(double value);
 int print_complex(gsl_complex value);
 int print_matrix_complex(gsl_matrix_complex* m);
 int print_vector_complex(gsl_vector_complex* v);

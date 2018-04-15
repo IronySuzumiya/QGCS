@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="inc\Algorithm.h" />
     <ClInclude Include="inc\Gate.h" />
     <ClInclude Include="inc\Qubit.h" />
     <ClInclude Include="inc\Tensor.h" />
@@ -26,6 +27,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Gate.c" />
+    <ClCompile Include="src\Grover.c" />
     <ClCompile Include="src\Qubit.c" />
     <ClCompile Include="src\Tensor.c" />
     <ClCompile Include="src\Util.c" />

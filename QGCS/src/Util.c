@@ -45,7 +45,11 @@ static int print_qupair_with_indent(Qupair* qupair, int indent) {
     print_with_indent(indent, "probability amplitude:\n");
     ++indent;
     for(int i = 0; i < qupair->states_num; ++i) {
-        print_with_indent(indent, "|%*d>:    ", qupair->states_num / 10 + 1, i);
+        print_with_indent(indent, "|", qupair->states_num / 10 + 1, i);
+        for (int j = 0; j < qupair->qubits_num; ++j) {
+            printf("%d", (i >> (qupair->qubits_num - 1 - j)) & 0x1);
+        }
+        printf(">:    ");
         print_complex(gsl_vector_complex_get(qupair->state, i));
         printf("\n");
     }
@@ -61,6 +65,16 @@ int print_with_indent(int indent, char* string, ...) {
     return 0;
 }
 
+int print_double(double value) {
+    if (double_is_zero(value - round(value))) {
+        printf("%d", (int)round(value));
+    }
+    else {
+        printf("%.3lf", value);
+    }
+    return 0;
+}
+
 int print_complex(gsl_complex value) {
     double real = GSL_REAL(value);
     double imag = GSL_IMAG(value);
@@ -68,13 +82,17 @@ int print_complex(gsl_complex value) {
         printf("0");
     }
     else if(double_is_zero(real)) {
-        printf("%.3fi", imag);
+        print_double(imag);
+        printf("i");
     }
     else if (double_is_zero(imag)) {
-        printf("%.3f", real);
+        print_double(real);
     }
     else {
-        printf("%.3f + %.3fi", real, imag);
+        print_double(real);
+        printf(" + ");
+        print_double(imag);
+        printf("i");
     }
     return 0;
 }
@@ -120,6 +138,7 @@ int print_qureg(Qureg* qureg) {
     printf("qupairs:\n");
     for(int i = 0; i < qureg->qupairs_num; ++i) {
         print_qupair_with_indent(qureg->qupairs[i], 1);
+        printf("\n");
     }
     printf("\n");
     return 0;

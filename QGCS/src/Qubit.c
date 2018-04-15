@@ -1,10 +1,11 @@
 #include <stdlib.h>
 #include <memory.h>
 #include <assert.h>
+#include <math.h>
 
 #include "Qubit.h"
 
-Qubit* allocate_qubit() {
+static Qubit* allocate_qubit() {
     Qubit* qubit = (Qubit*)malloc(sizeof(Qubit));
     memset(qubit, 0, sizeof(Qubit));
     qubit->state = gsl_vector_complex_calloc(2);
@@ -80,4 +81,19 @@ int qubit_index_in_qupair(Qubit* qubit, Qupair* qupair) {
         }
     }
     return index;
+}
+
+int results_as_int(Qubit** qubits, int qubits_num) {
+#if _QGCS_DEBUG
+    for (int i = 0; i < qubits_num; ++i) {
+        assert(qubits[i]->measured);
+    }
+#endif
+    int result = 0;
+    for (int i = 0; i < qubits_num; ++i) {
+        if (qubits[i]->value == One) {
+            result += (int)pow(2, qubits_num - 1 - i);
+        }
+    }
+    return result;
 }

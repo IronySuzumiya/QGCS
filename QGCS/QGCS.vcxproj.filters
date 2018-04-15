@@ -27,6 +27,9 @@
     <ClInclude Include="inc\Tensor.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="inc\Algorithm.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Qubit.c">
@@ -42,6 +45,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="test\Test.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Grover.c">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
