@@ -6,6 +6,7 @@
 #include <stdlib.h>
 
 #include "Util.h"
+#include "Const.h"
 
 #if _MSC_VER>=1900
 #include "stdio.h" 
@@ -144,20 +145,6 @@ int print_qureg(Qureg* qureg) {
     return 0;
 }
 
-gsl_vector_complex* matrix_vector_complex_mul(gsl_matrix_complex* m, gsl_vector_complex* v) {
-    assert(m->size2 == v->size);
-    gsl_vector_complex* temp = gsl_vector_complex_calloc(v->size);
-    gsl_blas_zgemv(CblasNoTrans, gsl_complex_rect(1.0, 0), m, v, gsl_complex_rect(0, 0), temp);
-    return temp;
-}
-
-gsl_matrix_complex* matrix_matrix_complex_mul(gsl_matrix_complex* m1, gsl_matrix_complex* m2) {
-    assert(m1->size2 == m2->size1);
-    gsl_matrix_complex* temp = gsl_matrix_complex_calloc(m1->size1, m2->size2);
-    gsl_blas_zgemm(CblasNoTrans, CblasNoTrans, gsl_complex_rect(1.0, 0), m1, m2, gsl_complex_rect(0, 0), temp);
-    return temp;
-}
-
 bool complex_is_zero(gsl_complex v) {
     return GSL_REAL(v) > -EPSILON && GSL_REAL(v) < EPSILON && GSL_IMAG(v) > -EPSILON && GSL_IMAG(v) < EPSILON;
 }
@@ -172,46 +159,4 @@ bool double_is_zero(double v) {
 
 bool double_equal(double a, double b) {
     return double_is_zero(a - b);
-}
-
-int vector_complex_positions_swap(gsl_vector_complex* v, int sigs_num, int sig1, int sig2) {
-    assert(sig1 < sigs_num && sig2 < sigs_num);
-    assert(pow(2, sigs_num) == v->size);
-    if (sig1 == sig2) {
-        return 0;
-    }
-    bool* swapped = (bool*)malloc(sizeof(bool) * v->size);
-    memset(swapped, 0, sizeof(bool) * v->size);
-    for (int i = 0; i < (int)v->size; ++i) {
-        // sigs are high-to-low
-        if (swapped[i]) {
-            continue;
-        }
-        int sig1_pos = (i >> (sigs_num - 1 - sig1)) & 0x1;
-        int sig2_pos = (i >> (sigs_num - 1 - sig2)) & 0x1;
-        if (sig1_pos == sig2_pos) {
-            // don't need to swap
-            swapped[i] = true;
-            continue;
-        }
-        int target_i = 0;
-        for (int j = 0; j < sigs_num; ++j) {
-            if (j == sig1) {
-                target_i |= sig2_pos << (sigs_num - 1 - j);
-            }
-            else if (j == sig2) {
-                target_i |= sig1_pos << (sigs_num - 1 - j);
-            }
-            else {
-                target_i |= i & (0x1 << (sigs_num - 1 - j));
-            }
-        }
-        gsl_complex temp = gsl_vector_complex_get(v, i);
-        gsl_vector_complex_set(v, i, gsl_vector_complex_get(v, target_i));
-        gsl_vector_complex_set(v, target_i, temp);
-        swapped[i] = true;
-        swapped[target_i] = true;
-    }
-    free(swapped);
-    return 0;
 }

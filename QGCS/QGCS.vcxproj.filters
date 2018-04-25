@@ -30,6 +30,12 @@
     <ClInclude Include="inc\Algorithm.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="inc\Feature.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\Const.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Qubit.c">
@@ -48,6 +54,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="src\Grover.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Feature.c">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

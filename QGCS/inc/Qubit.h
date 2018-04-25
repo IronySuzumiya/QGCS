@@ -6,8 +6,6 @@
 #include "gsl/gsl_complex_math.h"
 #include "gsl/gsl_vector.h"
 
-#define PI 3.14159
-
 typedef enum _result {
     Unknown,
     Zero,

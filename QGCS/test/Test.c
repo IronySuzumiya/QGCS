@@ -6,6 +6,7 @@
 #include "Gate.h"
 #include "Tensor.h"
 #include "Algorithm.h"
+#include "Feature.h"
 
 int test_entanglement() {
     Qureg* qureg = allocate_qureg(3);
@@ -42,7 +43,7 @@ int test_measurement() {
     
     print_qureg(qureg);
 
-    apply_to_each(X.apply, qureg->qubits, 3);
+    apply_to_each(X, qureg->qubits, 3);
     
     print_qureg(qureg);
 
@@ -106,20 +107,20 @@ int test_possibility() {
 
 int test_H() {
     Qureg* qureg = allocate_qureg(3);
-    apply_to_each(X.apply, qureg->qubits, qureg->qubits_num);
+    apply_to_each(X, qureg->qubits, qureg->qubits_num);
     CZ.apply(qureg->qubits, qureg->qubits_num);
     print_qureg(qureg);
-    apply_to_each(X.apply, qureg->qubits, qureg->qubits_num);
+    apply_to_each(X, qureg->qubits, qureg->qubits_num);
     print_qureg(qureg);
     Qubit** control = (Qubit**)malloc(sizeof(Qubit*) * 2);
     for (int i = 0; i < qureg->qubits_num - 1; ++i) {
         control[i] = qureg->qubits[i];
     }
-    apply_to_each(H.apply, control, qureg->qubits_num - 1);
+    apply_to_each(H, control, qureg->qubits_num - 1);
     print_qureg(qureg);
     CNOT.apply(qureg->qubits, qureg->qubits_num);
     print_qureg(qureg);
-    apply_to_each(H.apply, qureg->qubits, qureg->qubits_num);
+    apply_to_each(H, qureg->qubits, qureg->qubits_num);
     print_qureg(qureg);
     free_qureg(qureg);
     free(control);
@@ -128,10 +129,10 @@ int test_H() {
 }
 
 int main() {
-    gate_init(2333);
-    //gate_init((unsigned int)time(NULL));
-    //test_find_minimum();
-    test_measurement();
+    //gate_init(2333);
+    gate_init((unsigned int)time(NULL));
+    test_find_minimum();
+    //test_measurement();
 
     return 0;
 }

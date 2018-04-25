@@ -14,6 +14,7 @@ typedef void(*controlled_on_int_gate_apply)(Qubit**, int, int);
 typedef void(*controlled_gate_with_1_parameter_apply)(Qubit**, int, double);
 typedef void(*controlled_on_int_gate_with_1_parameter_apply)(Qubit**, int, int, double);
 typedef void(*measurement_apply)(Qubit*);
+typedef void(*do_with_controlled)(gsl_vector_complex*, int, int, int, double);
 
 typedef struct _gate {
     gate_apply apply;
@@ -55,9 +56,9 @@ extern ControlledGate1 CR;
 extern ControlledGate CZ;
 extern Measurement PauliZ_M;
 
-int check_entanglement(Qupair* qupair);
-int apply_to_each(gate_apply apply, Qubit** qubits, int qubits_num);
-int apply_to_each_reverse(gate_apply apply, Qubit** qubits, int qubits_num);
+void apply_controlled_gate_on_int(Qubit** qubits, int qubits_num, int controlled, do_with_controlled func, double param);
 int gate_init(unsigned int seed);
+int apply_to_each(Gate apply, Qubit** qubits, int qubits_num);
+int apply_to_each_reverse(Gate apply, Qubit** qubits, int qubits_num);
 
 #endif

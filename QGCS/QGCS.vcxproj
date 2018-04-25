@@ -20,12 +20,15 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="inc\Algorithm.h" />
+    <ClInclude Include="inc\Const.h" />
+    <ClInclude Include="inc\Feature.h" />
     <ClInclude Include="inc\Gate.h" />
     <ClInclude Include="inc\Qubit.h" />
     <ClInclude Include="inc\Tensor.h" />
     <ClInclude Include="inc\Util.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\Feature.c" />
     <ClCompile Include="src\Gate.c" />
     <ClCompile Include="src\Grover.c" />
     <ClCompile Include="src\Qubit.c" />
@@ -109,7 +112,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_QGCS_DEBUG</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_QGCS_DEBUG;_QGCS_OPT</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -123,7 +126,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_QGCS_DEBUG</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_QGCS_DEBUG;_QGCS_OPT</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
