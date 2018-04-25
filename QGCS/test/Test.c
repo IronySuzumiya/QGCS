@@ -42,7 +42,7 @@ int test_measurement() {
     
     print_qureg(qureg);
 
-    X.apply(qureg->qubits[2]);
+    apply_to_each(X.apply, qureg->qubits, 3);
     
     print_qureg(qureg);
 
@@ -130,7 +130,8 @@ int test_H() {
 int main() {
     gate_init(2333);
     //gate_init((unsigned int)time(NULL));
-    test_find_minimum();
+    //test_find_minimum();
+    test_measurement();
 
     return 0;
 }

@@ -55,7 +55,7 @@ extern ControlledGate1 CR;
 extern ControlledGate CZ;
 extern Measurement PauliZ_M;
 
-void check_entanglement(Qupair* qupair);
+int check_entanglement(Qupair* qupair);
 int apply_to_each(gate_apply apply, Qubit** qubits, int qubits_num);
 int apply_to_each_reverse(gate_apply apply, Qubit** qubits, int qubits_num);
 int gate_init(unsigned int seed);

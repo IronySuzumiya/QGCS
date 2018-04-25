@@ -7,26 +7,15 @@
 #include "Tensor.h"
 #include "Util.h"
 
-static int _check_entanglement(Qupair* qupair) {
-    struct {
-        enum { unassigned, normal, infinite } type;
-        gsl_complex value;
-    } rate = { 0 };
+static int _check_entanglement(Qupair* qupair, gsl_complex* ratio, bool* is_normal) {
+    enum { unassigned, normal, infinite } type;
     gsl_complex temp_value = gsl_complex_rect(0, 0);
-    int unentangled_index = -1;
+    int separable_index = -1;
     int states_num = qupair->states_num;
 
-    // Qupair with single qubit means it's not entangled
-    if (states_num == 2) {
-        Qubit* left_qubit = qupair->qureg->qubits[qupair->qubits_indices[0]];
-        left_qubit->entangled = false;
-        gsl_vector_complex_memcpy(left_qubit->state, qupair->state);
-        return 0;
-    }
-
     for (int gap = states_num / 2, index = 0; gap >= 1; gap /= 2, ++index) {
-        rate.type = unassigned;
-        rate.value = gsl_complex_rect(0.0, 0.0);
+        type = unassigned;
+        *ratio = gsl_complex_rect(0.0, 0.0);
         bool entangled = false;
         for (int times = 0; times < states_num / 2 / gap; times++) {
             for (int i = 0; i < gap; ++i) {
@@ -35,20 +24,20 @@ static int _check_entanglement(Qupair* qupair) {
                 gsl_complex b = gsl_vector_complex_get(qupair->state, offset + gap + i);
                 bool a_zero = complex_is_zero(a);
                 bool b_zero = complex_is_zero(b);
-                if (rate.type == unassigned) {
+                if (type == unassigned) {
                     if (a_zero && b_zero) {
                         //can be any
                     }
                     else if (b_zero) {
                         temp_value = a;
-                        rate.type = infinite;
+                        type = infinite;
                     }
                     else {
                         if (a_zero) {
                             temp_value = b;
                         }
-                        rate.type = normal;
-                        rate.value = gsl_complex_div(a, b);
+                        type = normal;
+                        *ratio = gsl_complex_div(a, b);
                     }
                 }
                 else {
@@ -56,14 +45,14 @@ static int _check_entanglement(Qupair* qupair) {
                         //always equal
                     }
                     else if (b_zero) {
-                        if (rate.type != infinite || !complex_equal(a, temp_value)) {
+                        if (type != infinite || !complex_equal(a, temp_value)) {
                             entangled = true;
                             break;
                         }
                     }
                     else {
                         if ((!complex_is_zero(temp_value) && a_zero && !complex_equal(b, temp_value))
-                            || rate.type != normal || !complex_equal(rate.value, gsl_complex_div(a, b))) {
+                            || type != normal || !complex_equal(*ratio, gsl_complex_div(a, b))) {
                             entangled = true;
                             break;
                         }
@@ -72,110 +61,125 @@ static int _check_entanglement(Qupair* qupair) {
             }
         }
         if (!entangled) {
-            unentangled_index = index;
-            goto unentangling;
+            separable_index = index;
+            assert(type != unassigned);
+            *is_normal = type == normal;
+            break;
         }
     }
 
-unentangling:
-    if (unentangled_index != -1) {
-        assert(rate.type != unassigned);
-        gsl_complex one = gsl_complex_rect(1.0, 0.0);
-        gsl_complex zero = gsl_complex_rect(0.0, 0.0);
-        gsl_complex alpha;
-        gsl_complex beta;
-        if (rate.type == normal) {
-            gsl_complex r2_plus_1 = gsl_complex_add(gsl_complex_mul(rate.value, rate.value), one);
-            gsl_complex sqrt_1_over_r2_plus_1 = gsl_complex_sqrt(gsl_complex_div(one, r2_plus_1));
-            alpha = gsl_complex_mul(rate.value, sqrt_1_over_r2_plus_1);
-            beta = sqrt_1_over_r2_plus_1;
-        }
-        else {
-            alpha = one;
-            beta = zero;
-        }
-
-        // Update the newly-unentangled qubit
-        Qubit* unentangled_qubit = qupair->qureg->qubits[qupair->qubits_indices[unentangled_index]];
-        unentangled_qubit->entangled = false;
-        assert(!unentangled_qubit->measured);
-        gsl_vector_complex_set(unentangled_qubit->state, 0, alpha);
-        gsl_vector_complex_set(unentangled_qubit->state, 1, beta);
-
-        // Update the qupair which this qubit belongs to
-        Qupair* old_qupair = qupair;
-        --old_qupair->qubits_num;
-        old_qupair->states_num /= 2;
-        // Update qubits indices
-        // Avoid using realloc()
-        int* new_qubits_indices = (int*)malloc(sizeof(int) * old_qupair->qubits_num);
-        memcpy(new_qubits_indices, old_qupair->qubits_indices, sizeof(int) * unentangled_index);
-        memcpy(&new_qubits_indices[unentangled_index],
-            &old_qupair->qubits_indices[unentangled_index + 1], sizeof(int) * (old_qupair->qubits_num - unentangled_index));
-        /*int new_qubits_index = 0;
-        for (int i = 0; i < unentangled_index; ++i, ++new_qubits_index) {
-        new_qubits_indices[new_qubits_index] = old_qupair->qubits_indices[i];
-        }
-        for (int i = unentangled_index + 1; i < old_qupair->qubits_num + 1; ++i, ++new_qubits_index) {
-        new_qubits_indices[new_qubits_index] = old_qupair->qubits_indices[i];
-        }*/
-        free(old_qupair->qubits_indices);
-        old_qupair->qubits_indices = new_qubits_indices;
-        // Update qupair state
-        int gap = states_num / (int)pow(2, unentangled_index + 1);
-        int new_index = 0;
-        gsl_vector_complex* new_state = gsl_vector_complex_calloc(states_num / 2);
-        for (int times = 0; times < states_num / 2 / gap; times++) {
-            for (int i = 0; i < gap; ++i) {
-                int offset = times * 2 * gap;
-                if (!complex_is_zero(alpha)) {
-                    gsl_complex old_value = gsl_vector_complex_get(qupair->state, offset + i);
-                    gsl_vector_complex_set(new_state, new_index, gsl_complex_div(old_value, alpha));
-                }
-                else {
-                    gsl_complex old_value = gsl_vector_complex_get(qupair->state, offset + gap + i);
-                    gsl_vector_complex_set(new_state, new_index, gsl_complex_div(old_value, beta));
-                }
-                ++new_index;
-            }
-        }
-        gsl_vector_complex_free(old_qupair->state);
-        old_qupair->state = new_state;
-
-        // Create a new qupair with single qubit, and put it into the qureg
-        Qureg* old_qureg = unentangled_qubit->qureg;
-        ++old_qureg->qupairs_num;
-        Qupair** new_qupairs = (Qupair**)malloc(sizeof(Qupair*) * old_qureg->qupairs_num);
-        for (int i = 0; i < old_qureg->qupairs_num - 1; ++i) {
-            new_qupairs[i] = old_qureg->qupairs[i];
-        }
-        new_qupairs[old_qureg->qupairs_num - 1] = (Qupair*)malloc(sizeof(Qupair));
-        Qupair* new_qupair = new_qupairs[old_qureg->qupairs_num - 1];
-        new_qupair->index = old_qureg->qupairs_num - 1;
-        new_qupair->qureg = old_qureg;
-        new_qupair->qubits_num = 1;
-        new_qupair->qubits_indices = (int*)malloc(sizeof(int));
-        new_qupair->qubits_indices[0] = unentangled_qubit->index;
-        new_qupair->states_num = 2;
-        new_qupair->state = gsl_vector_complex_calloc(2);
-        gsl_vector_complex_set(new_qupair->state, 0, alpha);
-        gsl_vector_complex_set(new_qupair->state, 1, beta);
-        unentangled_qubit->qupair = new_qupair;
-        // Only delete old qupair array, don't touch the elements within
-        free(old_qureg->qupairs);
-        old_qureg->qupairs = new_qupairs;
-
-        // There maybe other unentangled qubits, so go on to check again
-        return 1;
-    }
-    else {
-        // All qubits in this qupair are entangled
-        return 0;
-    }
+    return separable_index;
 }
 
-void check_entanglement(Qupair* qupair) {
-    while (_check_entanglement(qupair));
+static int calculate_probamp(gsl_complex ratio, bool is_normal, gsl_complex* alpha, gsl_complex* beta) {
+    gsl_complex one = gsl_complex_rect(1.0, 0.0);
+    gsl_complex zero = gsl_complex_rect(0.0, 0.0);
+    if (is_normal) {
+        gsl_complex r2_plus_1 = gsl_complex_add(gsl_complex_mul(ratio, ratio), one);
+        gsl_complex sqrt_1_over_r2_plus_1 = gsl_complex_sqrt(gsl_complex_div(one, r2_plus_1));
+        *alpha = gsl_complex_mul(ratio, sqrt_1_over_r2_plus_1);
+        *beta = sqrt_1_over_r2_plus_1;
+    }
+    else {
+        *alpha = one;
+        *beta = zero;
+    }
+
+    return 0;
+}
+
+static int detach_qubit_from_qupair(Qupair* qupair, int index, gsl_complex alpha, gsl_complex beta) {
+    --qupair->qubits_num;
+    qupair->states_num /= 2;
+    // Avoid to use realloc()
+    int* new_qubits_indices = (int*)malloc(sizeof(int) * qupair->qubits_num);
+    memcpy(new_qubits_indices, qupair->qubits_indices, sizeof(int) * index);
+    memcpy(&new_qubits_indices[index],
+        &qupair->qubits_indices[index + 1], sizeof(int) * (qupair->qubits_num - index));
+    free(qupair->qubits_indices);
+    qupair->qubits_indices = new_qubits_indices;
+
+    int gap = qupair->states_num / (int)pow(2, index);
+    int new_index = 0;
+    gsl_vector_complex* new_state = gsl_vector_complex_calloc(qupair->states_num);
+    for (int times = 0; times < qupair->states_num / gap; times++) {
+        for (int i = 0; i < gap; ++i) {
+            int offset = times * 2 * gap;
+            if (!complex_is_zero(alpha)) {
+                gsl_complex old_value = gsl_vector_complex_get(qupair->state, offset + i);
+                gsl_vector_complex_set(new_state, new_index, gsl_complex_div(old_value, alpha));
+            }
+            else {
+                gsl_complex old_value = gsl_vector_complex_get(qupair->state, offset + gap + i);
+                gsl_vector_complex_set(new_state, new_index, gsl_complex_div(old_value, beta));
+            }
+            ++new_index;
+        }
+    }
+    gsl_vector_complex_free(qupair->state);
+    qupair->state = new_state;
+
+    return 0;
+}
+
+static int attach_qubit_to_qureg(Qubit* qubit, Qureg* qureg, gsl_complex alpha, gsl_complex beta) {
+    ++qureg->qupairs_num;
+    Qupair** new_qupairs = (Qupair**)malloc(sizeof(Qupair*) * qureg->qupairs_num);
+    for (int i = 0; i < qureg->qupairs_num - 1; ++i) {
+        new_qupairs[i] = qureg->qupairs[i];
+    }
+    free(qureg->qupairs);
+    qureg->qupairs = new_qupairs;
+    qureg->qupairs[qureg->qupairs_num - 1] = (Qupair*)malloc(sizeof(Qupair));
+    initialize_qupair_with_single_qubit(qureg->qupairs[qureg->qupairs_num - 1], qureg, qureg->qupairs_num - 1, qubit, alpha, beta);
+
+    return 0;
+}
+
+static int disentangle(Qupair* qupair, int separable_index, bool is_normal, gsl_complex ratio) {
+    // calculate the probability amplitude according to the ratio
+    gsl_complex alpha, beta;
+    calculate_probamp(ratio, is_normal, &alpha, &beta);
+
+    // Update the newly-disentangled qubit
+    Qubit* separable_qubit = qupair->qureg->qubits[qupair->qubits_indices[separable_index]];
+    separable_qubit->entangled = false;
+    qubit_set_probamp(separable_qubit, alpha, beta);
+
+    // Update the qupair
+    detach_qubit_from_qupair(qupair, separable_index, alpha, beta);
+
+    // Create a new qupair with single qubit, and attach it to the qureg
+    attach_qubit_to_qureg(separable_qubit, separable_qubit->qureg, alpha, beta);
+
+    return 0;
+}
+
+int check_entanglement(Qupair* qupair) {
+    while (true) {
+        // Qupair with single qubit means it's not entangled
+        if (qupair->states_num == 2) {
+            Qubit* left_qubit = qupair->qureg->qubits[qupair->qubits_indices[0]];
+            left_qubit->entangled = false;
+            gsl_vector_complex_memcpy(left_qubit->state, qupair->state);
+            break;
+        }
+
+        bool is_normal;
+        gsl_complex ratio;
+        int separable_index = _check_entanglement(qupair, &ratio, &is_normal);
+
+        if (separable_index != -1) {
+            disentangle(qupair, separable_index, is_normal, ratio);
+            // There maybe other unentangled qubits, so go on to check again
+        }
+        else {
+            // All qubits in this qupair are entangled
+            break;
+        }
+    }
+
+    return 0;
 }
 
 static void apply_unitary_matrix(gsl_matrix_complex* matrix, Qubit* qubit) {

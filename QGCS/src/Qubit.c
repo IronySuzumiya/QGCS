@@ -5,7 +5,7 @@
 
 #include "Qubit.h"
 
-static Qubit* allocate_qubit() {
+Qubit* allocate_qubit() {
     Qubit* qubit = (Qubit*)malloc(sizeof(Qubit));
     memset(qubit, 0, sizeof(Qubit));
     qubit->state = gsl_vector_complex_calloc(2);
@@ -18,30 +18,41 @@ Qureg* allocate_qureg(int qubits_num) {
     qureg->qubits_num = qubits_num;
     qureg->qupairs_num = qubits_num;
 
-    Qubit** qubits = (Qubit**)malloc(sizeof(Qubit*) * qureg->qubits_num);
+    qureg->qubits = (Qubit**)malloc(sizeof(Qubit*) * qureg->qubits_num);
     for(int i = 0; i < qureg->qubits_num; ++i) {
-        qubits[i] = allocate_qubit();
-        qubits[i]->index = i;
-        qubits[i]->qureg = qureg;
+        qureg->qubits[i] = allocate_qubit();
+        qureg->qubits[i]->index = i;
+        qureg->qubits[i]->qureg = qureg;
     }
-    qureg->qubits = qubits;
 
-    Qupair** qupairs = (Qupair**)malloc(sizeof(Qupair*) * qureg->qupairs_num);
+    qureg->qupairs = (Qupair**)malloc(sizeof(Qupair*) * qureg->qupairs_num);
     for(int i = 0; i < qureg->qupairs_num; ++i) {
-        qupairs[i] = (Qupair*)malloc(sizeof(Qupair));
-        qupairs[i]->index = i;
-        qupairs[i]->qureg = qureg;
-        qupairs[i]->qubits_num = 1;
-        qupairs[i]->qubits_indices = (int*)malloc(sizeof(int));
-        qupairs[i]->qubits_indices[0] = i;
-        qupairs[i]->states_num = 2;
-        qupairs[i]->state = gsl_vector_complex_calloc(2);
-        gsl_vector_complex_set(qupairs[i]->state, 0, gsl_complex_rect(1.0, 0));
-        qubits[i]->qupair = qupairs[i];
+        qureg->qupairs[i] = (Qupair*)malloc(sizeof(Qupair));
+        initialize_qupair_with_single_qubit_default(qureg->qupairs[i], qureg, i, qureg->qubits[i]);
     }
-    qureg->qupairs = qupairs;
 
     return qureg;
+}
+
+int initialize_qupair_with_single_qubit(Qupair* qupair, Qureg* qureg, int index, Qubit* qubit, gsl_complex alpha, gsl_complex beta) {
+    assert(qureg->qupairs[index] == qupair);
+    assert(qubit->qureg == qureg);
+    qupair->index = index;
+    qupair->qureg = qureg;
+    qupair->qubits_num = 1;
+    qupair->qubits_indices = (int*)malloc(sizeof(int));
+    qupair->qubits_indices[0] = qubit->index;
+    qupair->states_num = 2;
+    qupair->state = gsl_vector_complex_calloc(2);
+    gsl_vector_complex_set(qupair->state, 0, alpha);
+    gsl_vector_complex_set(qupair->state, 1, beta);
+    qubit->qupair = qupair;
+
+    return 0;
+}
+
+int initialize_qupair_with_single_qubit_default(Qupair* qupair, Qureg* qureg, int index, Qubit* qubit) {
+    return initialize_qupair_with_single_qubit(qupair, qureg, index, qubit, gsl_complex_rect(1.0, 0), gsl_complex_rect(0, 0));
 }
 
 int free_qubit(Qubit* qubit) {
@@ -68,6 +79,20 @@ int free_qureg(Qureg* qureg) {
     }
     free(qureg->qupairs);
     free(qureg);
+    return 0;
+}
+
+int qupair_set_probamp(Qupair* qupair, int index, gsl_complex value) {
+    assert(index < qupair->states_num);
+    gsl_vector_complex_set(qupair->state, index, value);
+    return 0;
+}
+
+int qubit_set_probamp(Qubit* qubit, gsl_complex alpha, gsl_complex beta) {
+    assert(!qubit->entangled);
+    assert(!qubit->measured);
+    gsl_vector_complex_set(qubit->state, 0, alpha);
+    gsl_vector_complex_set(qubit->state, 1, beta);
     return 0;
 }
 
