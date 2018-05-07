@@ -1,64 +1,33 @@
 #ifndef _Gate_H
 #define _Gate_H
 
-#include "gsl/gsl_matrix.h"
-#include "gsl/gsl_vector.h"
-#include "gsl/gsl_complex_math.h"
-#include "gsl/gsl_blas.h"
 #include "Qubit.h"
 
-typedef void(*gate_apply)(Qubit*);
-typedef void(*gate_with_1_parameter_apply)(Qubit*, double);
-typedef void(*controlled_gate_apply)(Qubit**, int);
-typedef void(*controlled_on_int_gate_apply)(Qubit**, int, int);
-typedef void(*controlled_gate_with_1_parameter_apply)(Qubit**, int, double);
-typedef void(*controlled_on_int_gate_with_1_parameter_apply)(Qubit**, int, int, double);
-typedef void(*measurement_apply)(Qubit*);
-typedef void(*do_with_controlled)(gsl_vector_complex*, int, int, int, double);
+extern Matrix H;
 
-typedef struct _gate {
-    gate_apply apply;
-    gate_apply apply_dagger;
-    gsl_matrix_complex* matrix;
-    gsl_matrix_complex* dagger_matrix;
-} Gate;
+void apply_H(Qubit* qubit);
+void apply_H_dagger(Qubit* qubit);
+void apply_X(Qubit* qubit);
+void apply_X_dagger(Qubit* qubit);
+void apply_R(Qubit* qubit, float phi);
+void apply_R_dagger(Qubit* qubit, float phi);
+void apply_Z(Qubit* qubit);
+void apply_Z_dagger(Qubit* qubit);
+void apply_CNOT_on_int(Qubit** qubits, int qubits_num, int controlled);
+void apply_CNOT_dagger_on_int(Qubit** qubits, int qubits_num, int controlled);
+void apply_CNOT(Qubit** qubits, int qubits_num);
+void apply_CNOT_dagger(Qubit** qubits, int qubits_num);
+void apply_CR_on_int(Qubit** qubits, int qubits_num, int controlled, float phi);
+void apply_CR_dagger_on_int(Qubit** qubits, int qubits_num, int controlled, float phi);
+void apply_CR(Qubit** qubits, int qubits_num, float phi);
+void apply_CR_dagger(Qubit** qubits, int qubits_num, float phi);
+void apply_CZ_on_int(Qubit** qubits, int qubits_num, int controlled);
+void apply_CZ_dagger_on_int(Qubit** qubits, int qubits_num, int controlled);
+void apply_CZ(Qubit** qubits, int qubits_num);
+void apply_CZ_dagger(Qubit** qubits, int qubits_num);
+void apply_PauliZ_M(Qubit* qubit);
 
-typedef struct _gate_with_1_parameter {
-    gate_with_1_parameter_apply apply;
-    gate_with_1_parameter_apply apply_dagger;
-} Gate1;
-
-typedef struct _controlled_gate {
-    controlled_gate_apply apply;
-    controlled_gate_apply apply_dagger;
-    controlled_on_int_gate_apply apply_on_int;
-    controlled_on_int_gate_apply apply_on_int_dagger;
-} ControlledGate;
-
-typedef struct _controlled_gate_with_1_parameter {
-    controlled_gate_with_1_parameter_apply apply;
-    controlled_gate_with_1_parameter_apply apply_dagger;
-    controlled_on_int_gate_with_1_parameter_apply apply_on_int;
-    controlled_on_int_gate_with_1_parameter_apply apply_on_int_dagger;
-} ControlledGate1;
-
-typedef struct _measurement {
-    measurement_apply apply;
-    gsl_matrix_complex** operators;
-} Measurement;
-
-extern Gate H;
-extern Gate X;
-extern Gate1 R;
-extern Gate Z;
-extern ControlledGate CNOT;
-extern ControlledGate1 CR;
-extern ControlledGate CZ;
-extern Measurement PauliZ_M;
-
-void apply_controlled_gate_on_int(Qubit** qubits, int qubits_num, int controlled, do_with_controlled func, double param);
-int gate_init(unsigned int seed);
-int apply_to_each(Gate apply, Qubit** qubits, int qubits_num);
-int apply_to_each_reverse(Gate apply, Qubit** qubits, int qubits_num);
+void apply_P(Qubit** qubits, int qubits_num);
+void apply_P_dagger(Qubit** qubits, int qubits_num);
 
 #endif

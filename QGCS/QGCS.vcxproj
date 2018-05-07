@@ -20,17 +20,21 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="inc\Algorithm.h" />
+    <ClInclude Include="inc\Complex.h" />
     <ClInclude Include="inc\Const.h" />
     <ClInclude Include="inc\Feature.h" />
     <ClInclude Include="inc\Gate.h" />
+    <ClInclude Include="inc\Memory.h" />
     <ClInclude Include="inc\Qubit.h" />
     <ClInclude Include="inc\Tensor.h" />
     <ClInclude Include="inc\Util.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\Complex.c" />
     <ClCompile Include="src\Feature.c" />
     <ClCompile Include="src\Gate.c" />
     <ClCompile Include="src\Grover.c" />
+    <ClCompile Include="src\Memory.c" />
     <ClCompile Include="src\Qubit.c" />
     <ClCompile Include="src\Tensor.c" />
     <ClCompile Include="src\Util.c" />

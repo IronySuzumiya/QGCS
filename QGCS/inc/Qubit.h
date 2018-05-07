@@ -1,10 +1,7 @@
 #ifndef _Qubit_H
 #define _Qubit_H
 
-#include <stdbool.h>
-
-#include "gsl/gsl_complex_math.h"
-#include "gsl/gsl_vector.h"
+#include "Tensor.h"
 
 typedef enum _result {
     Unknown,
@@ -19,9 +16,9 @@ typedef struct _qubit {
     int index;
     struct _qureg* qureg;
     struct _qupair* qupair;
-    gsl_vector_complex* state;
-    bool entangled;
-    bool measured;
+    Ket state;
+    int entangled;
+    int measured;
     Result value;
 } Qubit;
 
@@ -31,7 +28,7 @@ typedef struct _qupair {
     int qubits_num;
     int* qubits_indices; // high to low
     int states_num;
-    gsl_vector_complex* state;
+    Ket state;
 } Qupair;
 
 typedef struct _qureg {
@@ -43,14 +40,17 @@ typedef struct _qureg {
 
 Qubit* allocate_qubit(void);
 Qureg* allocate_qureg(int qubits_num);
-int initialize_qupair_with_single_qubit(Qupair* qupair, Qureg* qureg, int index, Qubit* qubit, gsl_complex alpha, gsl_complex beta);
+int initialize_qupair_with_single_qubit(Qupair* qupair, Qureg* qureg, int index, Qubit* qubit, Complex alpha, Complex beta);
 int initialize_qupair_with_single_qubit_default(Qupair* qupair, Qureg* qureg, int index, Qubit* qubit);
 int free_qubit(Qubit* qubit);
 int free_qupair(Qupair* qupair);
 int free_qureg(Qureg* qureg);
-int qupair_set_probamp(Qupair* qupair, int index, gsl_complex value);
-int qubit_set_probamp(Qubit* qubit, gsl_complex alpha, gsl_complex beta);
+int qupair_set_probamp(Qupair* qupair, int index, Complex value);
+int qubit_set_probamp(Qubit* qubit, Complex alpha, Complex beta);
 int qubit_index_in_qupair(Qubit* qubit, Qupair* qupair);
 int results_as_int(Qubit** qubits, int qubits_num);
+void check_qubit(Qubit* qubit);
+void check_qupair(Qupair* qupair);
+void check_qureg(Qureg* qureg);
 
 #endif

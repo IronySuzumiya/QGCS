@@ -4,9 +4,9 @@
 #include "Qubit.h"
 
 int check_entanglement(Qupair* qupair);
-int vector_complex_positions_swap(gsl_vector_complex* v, int sigs_num, int sig1, int sig2);
-gsl_vector_complex* combine_qubits(Qubit** qubits, int qubits_num);
-gsl_vector_complex* combine_qupairs(Qupair** qupairs, int qupairs_num);
+int ket_positions_swap(Ket v, int sigs_num, int sig1, int sig2);
+Ket combine_qubits(Qubit** qubits, int qubits_num);
+Ket combine_qupairs(Qupair** qupairs, int qupairs_num);
 int get_exclusive_qupairs_from_qubits(Qubit** qubits, int qubits_num, Qupair** qupairs);
 int get_entangled_qubits_num(Qupair** qupairs, int qupairs_num);
 int get_separable_qubits_num(Qubit** qubits, int qubits_num);

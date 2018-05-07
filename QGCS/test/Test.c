@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <time.h>
+#include <stdlib.h>
 
 #include "Qubit.h"
 #include "Util.h"
@@ -7,19 +8,20 @@
 #include "Tensor.h"
 #include "Algorithm.h"
 #include "Feature.h"
+#include "Memory.h"
 
 int test_entanglement() {
     Qureg* qureg = allocate_qureg(3);
     for (int i = 0; i < 2; ++i) {
-        H.apply(qureg->qubits[i]);
+        apply_H(qureg->qubits[i]);
     }
-    CNOT.apply(qureg->qubits, 3);
+    apply_CNOT(qureg->qubits, 3);
     print_qureg(qureg);
 
-    X.apply(qureg->qubits[2]);
+    apply_X(qureg->qubits[2]);
     print_qureg(qureg);
 
-    CNOT.apply(qureg->qubits, 3);
+    apply_CNOT(qureg->qubits, 3);
     print_qureg(qureg);
 
     free_qureg(qureg);
@@ -29,29 +31,31 @@ int test_entanglement() {
 
 int test_measurement() {
     Qureg* qureg = allocate_qureg(3);
-    H.apply(qureg->qubits[0]);
+    apply_H(qureg->qubits[0]);
 
-    Qubit** temp = (Qubit**)malloc(sizeof(Qubit*) * 2);
+    Qubit** temp = (Qubit**)pointer_memory_get(2);
     temp[0] = qureg->qubits[0];
     temp[1] = qureg->qubits[1];
-    CNOT.apply(temp, 2);
-    free(temp);
+    apply_CNOT(temp, 2);
+    pointer_memory_return(temp, 2);
 
     print_qureg(qureg);
 
-    CNOT.apply(qureg->qubits, 3);
+    apply_CNOT(qureg->qubits, 3);
     
     print_qureg(qureg);
 
-    apply_to_each(X, qureg->qubits, 3);
+    for (int i = 0; i < 3; ++i) {
+        apply_X(qureg->qubits[i]);
+    }
     
     print_qureg(qureg);
 
-    Z.apply(qureg->qubits[1]);
+    apply_Z(qureg->qubits[1]);
 
     print_qureg(qureg);
 
-    PauliZ_M.apply(qureg->qubits[1]);
+    apply_PauliZ_M(qureg->qubits[1]);
 
     print_qureg(qureg);
 
@@ -60,7 +64,7 @@ int test_measurement() {
 
 int test_find_minimum() {
     int database_size = 64;
-    int* database = (int*)malloc(sizeof(int) * database_size);
+    int* database = int_memory_get(database_size);
     printf("Database is: ");
     for (int i = 0; i < database_size; ++i) {
         database[i] = rand() % 100;
@@ -71,19 +75,20 @@ int test_find_minimum() {
     int min_index = find_minimum(database, database_size);
     printf("Minimum's index is: %d\n", min_index);
     printf("Minimum's value is: %d\n", database[min_index]);
+    int_memory_return(database, database_size);
 
     return 0;
 }
 
-int test_vector_complex_positions_swap() {
-    gsl_vector_complex* v = gsl_vector_complex_calloc(8);
+int test_ket_positions_swap() {
+    Ket v = ket_calloc(8);
     for (int i = 0; i < 8; ++i) {
-        gsl_vector_complex_set(v, i, gsl_complex_rect(i, 0));
+        ket_set(v, i, complex_rect((float)i, 0));
     }
-    print_vector_complex(v);
+    print_ket(v);
     printf("\n");
-    vector_complex_positions_swap(v, 3, 0, 2);
-    print_vector_complex(v);
+    ket_positions_swap(v, 3, 0, 2);
+    print_ket(v);
     printf("\n");
 
     return 0;
@@ -94,8 +99,8 @@ int test_possibility() {
     int zero_count = 0;
     for (int i = 0; i < 1000; ++i) {
         Qureg* qureg = allocate_qureg(1);
-        H.apply(qureg->qubits[0]);
-        PauliZ_M.apply(qureg->qubits[0]);
+        apply_H(qureg->qubits[0]);
+        apply_PauliZ_M(qureg->qubits[0]);
         zero_count += qureg->qubits[0]->value == Zero ? 1 : 0;
         free_qureg(qureg);
     }
@@ -105,32 +110,11 @@ int test_possibility() {
     return 0;
 }
 
-int test_H() {
-    Qureg* qureg = allocate_qureg(3);
-    apply_to_each(X, qureg->qubits, qureg->qubits_num);
-    CZ.apply(qureg->qubits, qureg->qubits_num);
-    print_qureg(qureg);
-    apply_to_each(X, qureg->qubits, qureg->qubits_num);
-    print_qureg(qureg);
-    Qubit** control = (Qubit**)malloc(sizeof(Qubit*) * 2);
-    for (int i = 0; i < qureg->qubits_num - 1; ++i) {
-        control[i] = qureg->qubits[i];
-    }
-    apply_to_each(H, control, qureg->qubits_num - 1);
-    print_qureg(qureg);
-    CNOT.apply(qureg->qubits, qureg->qubits_num);
-    print_qureg(qureg);
-    apply_to_each(H, qureg->qubits, qureg->qubits_num);
-    print_qureg(qureg);
-    free_qureg(qureg);
-    free(control);
-
-    return 0;
-}
-
 int main() {
     //gate_init(2333);
-    gate_init((unsigned int)time(NULL));
+    memory_init();
+    unsigned int seed = 1525627507; //1525627507 <-use this //1525627293
+    srand(seed);
     test_find_minimum();
     //test_measurement();
 

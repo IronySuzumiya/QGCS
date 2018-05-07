@@ -1,28 +1,28 @@
-#include <memory.h>
 #include <assert.h>
 #include <math.h>
 
 #include "Feature.h"
 #include "Util.h"
 #include "Tensor.h"
+#include "Memory.h"
 
-static int _check_entanglement(Qupair* qupair, gsl_complex* ratio, bool* is_normal) {
+static int _check_entanglement(Qupair* qupair, Complex* ratio, int* is_normal) {
     enum { unassigned, normal, infinite } type;
-    gsl_complex temp_value = gsl_complex_rect(0, 0);
+    Complex temp_value = complex_rect(0, 0);
     int separable_index = -1;
     int states_num = qupair->states_num;
 
     for (int gap = states_num / 2, index = 0; gap >= 1; gap /= 2, ++index) {
         type = unassigned;
-        *ratio = gsl_complex_rect(0.0, 0.0);
-        bool entangled = false;
+        *ratio = complex_rect(0.0, 0.0);
+        int entangled = 0;
         for (int times = 0; times < states_num / 2 / gap; times++) {
             for (int i = 0; i < gap; ++i) {
                 int offset = times * 2 * gap;
-                gsl_complex a = gsl_vector_complex_get(qupair->state, offset + i);
-                gsl_complex b = gsl_vector_complex_get(qupair->state, offset + gap + i);
-                bool a_zero = complex_is_zero(a);
-                bool b_zero = complex_is_zero(b);
+                Complex a = ket_get(qupair->state, offset + i);
+                Complex b = ket_get(qupair->state, offset + gap + i);
+                int a_zero = complex_is_zero(a);
+                int b_zero = complex_is_zero(b);
                 if (type == unassigned) {
                     if (a_zero && b_zero) {
                         //can be any
@@ -36,7 +36,7 @@ static int _check_entanglement(Qupair* qupair, gsl_complex* ratio, bool* is_norm
                             temp_value = b;
                         }
                         type = normal;
-                        *ratio = gsl_complex_div(a, b);
+                        *ratio = complex_div(a, b);
                     }
                 }
                 else {
@@ -45,14 +45,14 @@ static int _check_entanglement(Qupair* qupair, gsl_complex* ratio, bool* is_norm
                     }
                     else if (b_zero) {
                         if (type != infinite || !complex_equal(a, temp_value)) {
-                            entangled = true;
+                            entangled = 1;
                             break;
                         }
                     }
                     else {
                         if ((!complex_is_zero(temp_value) && a_zero && !complex_equal(b, temp_value))
-                            || type != normal || !complex_equal(*ratio, gsl_complex_div(a, b))) {
-                            entangled = true;
+                            || type != normal || !complex_equal(*ratio, complex_div(a, b))) {
+                            entangled = 1;
                             break;
                         }
                     }
@@ -70,13 +70,13 @@ static int _check_entanglement(Qupair* qupair, gsl_complex* ratio, bool* is_norm
     return separable_index;
 }
 
-static int calculate_probamp(gsl_complex ratio, bool is_normal, gsl_complex* alpha, gsl_complex* beta) {
-    gsl_complex one = gsl_complex_rect(1.0, 0.0);
-    gsl_complex zero = gsl_complex_rect(0.0, 0.0);
+static int calculate_probamp(Complex ratio, int is_normal, Complex* alpha, Complex* beta) {
+    Complex one = complex_rect(1.0, 0.0);
+    Complex zero = complex_rect(0.0, 0.0);
     if (is_normal) {
-        gsl_complex r2_plus_1 = gsl_complex_add(gsl_complex_mul(ratio, ratio), one);
-        gsl_complex sqrt_1_over_r2_plus_1 = gsl_complex_sqrt(gsl_complex_div(one, r2_plus_1));
-        *alpha = gsl_complex_mul(ratio, sqrt_1_over_r2_plus_1);
+        Complex r2_plus_1 = complex_add(complex_mul(ratio, ratio), one);
+        Complex sqrt_1_over_r2_plus_1 = complex_sqrt(complex_div(one, r2_plus_1));
+        *alpha = complex_mul(ratio, sqrt_1_over_r2_plus_1);
         *beta = sqrt_1_over_r2_plus_1;
     }
     else {
@@ -87,62 +87,72 @@ static int calculate_probamp(gsl_complex ratio, bool is_normal, gsl_complex* alp
     return 0;
 }
 
-static int detach_qubit_from_qupair(Qupair* qupair, int index, gsl_complex alpha, gsl_complex beta) {
+static int detach_qubit_from_qupair(Qupair* qupair, int index, Complex alpha, Complex beta) {
+    int* new_qubits_indices = int_memory_get(qupair->qubits_num - 1);
+    for (int i = 0; i < index; ++i) {
+        new_qubits_indices[i] = qupair->qubits_indices[i];
+    }
+    for (int i = index; i < qupair->qubits_num - 1; ++i) {
+        new_qubits_indices[i] = qupair->qubits_indices[i + 1];
+    }
+    int_memory_return(qupair->qubits_indices, qupair->qubits_num);
     --qupair->qubits_num;
     qupair->states_num /= 2;
-    // Avoid to use realloc()
-    int* new_qubits_indices = (int*)malloc(sizeof(int) * qupair->qubits_num);
-    memcpy(new_qubits_indices, qupair->qubits_indices, sizeof(int) * index);
-    memcpy(&new_qubits_indices[index],
-        &qupair->qubits_indices[index + 1], sizeof(int) * (qupair->qubits_num - index));
-    free(qupair->qubits_indices);
     qupair->qubits_indices = new_qubits_indices;
 
     int gap = qupair->states_num / (int)pow(2, index);
     int new_index = 0;
-    gsl_vector_complex* new_state = gsl_vector_complex_calloc(qupair->states_num);
-    for (int times = 0; times < qupair->states_num / gap; times++) {
-        for (int i = 0; i < gap; ++i) {
-            int offset = times * 2 * gap;
-            if (!complex_is_zero(alpha)) {
-                gsl_complex old_value = gsl_vector_complex_get(qupair->state, offset + i);
-                gsl_vector_complex_set(new_state, new_index, gsl_complex_div(old_value, alpha));
+    Ket new_state = ket_calloc(qupair->states_num);
+    if (!complex_is_zero(alpha)) {
+        for (int times = 0; times < qupair->states_num / gap; times++) {
+            for (int i = 0; i < gap; ++i) {
+                int offset = times * 2 * gap;
+                Complex old_value = ket_get(qupair->state, offset + i);
+                ket_set(new_state, new_index, complex_div(old_value, alpha));
+                ++new_index;
             }
-            else {
-                gsl_complex old_value = gsl_vector_complex_get(qupair->state, offset + gap + i);
-                gsl_vector_complex_set(new_state, new_index, gsl_complex_div(old_value, beta));
-            }
-            ++new_index;
         }
     }
-    gsl_vector_complex_free(qupair->state);
+    else {
+        for (int times = 0; times < qupair->states_num / gap; times++) {
+            for (int i = 0; i < gap; ++i) {
+                int offset = times * 2 * gap;
+                Complex old_value = ket_get(qupair->state, offset + gap + i);
+                ket_set(new_state, new_index, complex_div(old_value, beta));
+                ++new_index;
+            }
+        }
+    }
+    ket_free(qupair->state);
     qupair->state = new_state;
+
+    check_qupair(qupair);
 
     return 0;
 }
 
-static int attach_qubit_to_qureg(Qubit* qubit, Qureg* qureg, gsl_complex alpha, gsl_complex beta) {
-    ++qureg->qupairs_num;
-    Qupair** new_qupairs = (Qupair**)malloc(sizeof(Qupair*) * qureg->qupairs_num);
-    for (int i = 0; i < qureg->qupairs_num - 1; ++i) {
+static int attach_qubit_to_qureg(Qubit* qubit, Qureg* qureg, Complex alpha, Complex beta) {
+    Qupair** new_qupairs = (Qupair**)pointer_memory_get(qureg->qupairs_num + 1);
+    for (int i = 0; i < qureg->qupairs_num; ++i) {
         new_qupairs[i] = qureg->qupairs[i];
     }
-    free(qureg->qupairs);
+    pointer_memory_return(qureg->qupairs, qureg->qupairs_num);
+    ++qureg->qupairs_num;
     qureg->qupairs = new_qupairs;
-    qureg->qupairs[qureg->qupairs_num - 1] = (Qupair*)malloc(sizeof(Qupair));
+    qureg->qupairs[qureg->qupairs_num - 1] = qupair_memory_get(1);
     initialize_qupair_with_single_qubit(qureg->qupairs[qureg->qupairs_num - 1], qureg, qureg->qupairs_num - 1, qubit, alpha, beta);
 
     return 0;
 }
 
-static int disentangle(Qupair* qupair, int separable_index, bool is_normal, gsl_complex ratio) {
+static int disentangle(Qupair* qupair, int separable_index, int is_normal, Complex ratio) {
     // calculate the probability amplitude according to the ratio
-    gsl_complex alpha, beta;
+    Complex alpha, beta;
     calculate_probamp(ratio, is_normal, &alpha, &beta);
 
     // Update the newly-disentangled qubit
     Qubit* separable_qubit = qupair->qureg->qubits[qupair->qubits_indices[separable_index]];
-    separable_qubit->entangled = false;
+    separable_qubit->entangled = 0;
     qubit_set_probamp(separable_qubit, alpha, beta);
 
     // Update the qupair
@@ -155,17 +165,18 @@ static int disentangle(Qupair* qupair, int separable_index, bool is_normal, gsl_
 }
 
 int check_entanglement(Qupair* qupair) {
-    while (true) {
+    while (1) {
         // Qupair with single qubit means it's not entangled
         if (qupair->states_num == 2) {
             Qubit* left_qubit = qupair->qureg->qubits[qupair->qubits_indices[0]];
-            left_qubit->entangled = false;
-            gsl_vector_complex_memcpy(left_qubit->state, qupair->state);
+            left_qubit->entangled = 0;
+            ket_set(left_qubit->state, 0, ket_get(qupair->state, 0));
+            ket_set(left_qubit->state, 1, ket_get(qupair->state, 1));
             break;
         }
 
-        bool is_normal;
-        gsl_complex ratio;
+        int is_normal;
+        Complex ratio;
         int separable_index = _check_entanglement(qupair, &ratio, &is_normal);
 
         if (separable_index != -1) {
@@ -181,15 +192,17 @@ int check_entanglement(Qupair* qupair) {
     return 0;
 }
 
-int vector_complex_positions_swap(gsl_vector_complex* v, int sigs_num, int sig1, int sig2) {
+int ket_positions_swap(Ket v, int sigs_num, int sig1, int sig2) {
     assert(sig1 < sigs_num && sig2 < sigs_num);
-    assert(pow(2, sigs_num) == v->size);
+    assert(pow(2, sigs_num) == v.size);
     if (sig1 == sig2) {
         return 0;
     }
-    bool* swapped = (bool*)malloc(sizeof(bool) * v->size);
-    memset(swapped, 0, sizeof(bool) * v->size);
-    for (int i = 0; i < (int)v->size; ++i) {
+    int* swapped = int_memory_get(v.size);
+    for (int i = 0; i < v.size; ++i) {
+        swapped[i] = 0;
+    }
+    for (int i = 0; i < v.size; ++i) {
         // sigs are high-to-low
         if (swapped[i]) {
             continue;
@@ -198,7 +211,7 @@ int vector_complex_positions_swap(gsl_vector_complex* v, int sigs_num, int sig1,
         int sig2_pos = (i >> (sigs_num - 1 - sig2)) & 0x1;
         if (sig1_pos == sig2_pos) {
             // don't need to swap
-            swapped[i] = true;
+            swapped[i] = 1;
             continue;
         }
         int target_i = 0;
@@ -213,28 +226,27 @@ int vector_complex_positions_swap(gsl_vector_complex* v, int sigs_num, int sig1,
                 target_i |= i & (0x1 << (sigs_num - 1 - j));
             }
         }
-        gsl_complex temp = gsl_vector_complex_get(v, i);
-        gsl_vector_complex_set(v, i, gsl_vector_complex_get(v, target_i));
-        gsl_vector_complex_set(v, target_i, temp);
-        swapped[i] = true;
-        swapped[target_i] = true;
+        Complex temp = ket_get(v, i);
+        ket_set(v, i, ket_get(v, target_i));
+        ket_set(v, target_i, temp);
+        swapped[i] = 1;
+        swapped[target_i] = 1;
     }
-    free(swapped);
+    int_memory_return(swapped, v.size);
 
     return 0;
 }
 
-gsl_vector_complex* combine_qubits(Qubit** qubits, int qubits_num) {
-    gsl_vector_complex* combined_inputs;
+Ket combine_qubits(Qubit** qubits, int qubits_num) {
+    Ket combined_inputs;
     if (qubits_num == 1) {
-        combined_inputs = gsl_vector_complex_calloc(2);
-        gsl_vector_complex_memcpy(combined_inputs, qubits[0]->state);
+        combined_inputs = ket_from_ket(qubits[0]->state);
     }
     else {
-        combined_inputs = Kronecker_product_vv(qubits[0]->state, qubits[1]->state);
+        combined_inputs = ket_Kronecker_product(qubits[0]->state, qubits[1]->state);
         for (int i = 2; i < qubits_num; ++i) {
-            gsl_vector_complex* temp = Kronecker_product_vv(combined_inputs, qubits[i]->state);
-            gsl_vector_complex_free(combined_inputs);
+            Ket temp = ket_Kronecker_product(combined_inputs, qubits[i]->state);
+            ket_free(combined_inputs);
             combined_inputs = temp;
         }
     }
@@ -242,17 +254,16 @@ gsl_vector_complex* combine_qubits(Qubit** qubits, int qubits_num) {
     return combined_inputs;
 }
 
-gsl_vector_complex* combine_qupairs(Qupair** qupairs, int qupairs_num) {
-    gsl_vector_complex* combined_inputs;
+Ket combine_qupairs(Qupair** qupairs, int qupairs_num) {
+    Ket combined_inputs;
     if (qupairs_num == 1) {
-        combined_inputs = gsl_vector_complex_calloc(qupairs[0]->states_num);
-        gsl_vector_complex_memcpy(combined_inputs, qupairs[0]->state);
+        combined_inputs = ket_from_ket(qupairs[0]->state);
     }
     else {
-        combined_inputs = Kronecker_product_vv(qupairs[0]->state, qupairs[1]->state);
+        combined_inputs = ket_Kronecker_product(qupairs[0]->state, qupairs[1]->state);
         for (int i = 2; i < qupairs_num; ++i) {
-            gsl_vector_complex* temp = Kronecker_product_vv(combined_inputs, qupairs[i]->state);
-            gsl_vector_complex_free(combined_inputs);
+            Ket temp = ket_Kronecker_product(combined_inputs, qupairs[i]->state);
+            ket_free(combined_inputs);
             combined_inputs = temp;
         }
     }
@@ -264,11 +275,11 @@ int get_exclusive_qupairs_from_qubits(Qubit** qubits, int qubits_num, Qupair** q
     int qupairs_num = 0;
     for (int i = 0; i < qubits_num; ++i) {
         if (qubits[i]->entangled) {
-            // Better to use a 'set'
-            bool exist = false;
+            // Better use a 'set'
+            int exist = 0;
             for (int j = 0; j < qupairs_num; ++j) {
                 if (qupairs[j] == qubits[i]->qupair) {
-                    exist = true;
+                    exist = 1;
                     break;
                 }
             }

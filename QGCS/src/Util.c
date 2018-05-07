@@ -2,27 +2,24 @@
 #include <stdarg.h>
 #include <assert.h>
 #include <math.h>
-#include <memory.h>
-#include <stdlib.h>
 
 #include "Util.h"
 #include "Const.h"
 
 #if _MSC_VER>=1900
-#include "stdio.h" 
 FILE* __cdecl __iob_func(unsigned i) {
     return __acrt_iob_func(i);
 }
 #endif /* _MSC_VER>=1900 */
 
-static int print_qubit_with_indent(Qubit* qubit, int indent) {
+static void print_qubit_with_indent(Qubit* qubit, int indent) {
     print_with_indent(indent, "index: %d\n", qubit->index);
     print_with_indent(indent, "qupair index: %d\n", qubit->qupair->index);
     if(!qubit->entangled && !qubit->measured) {
         print_with_indent(indent, "state: (");
-        print_complex(gsl_vector_complex_get(qubit->state, 0));
+        print_complex(ket_get(qubit->state, 0));
         printf(")|0> + (");
-        print_complex(gsl_vector_complex_get(qubit->state, 1));
+        print_complex(ket_get(qubit->state, 1));
         printf(")|1>\n");
     }
     else if(qubit->entangled) {
@@ -32,10 +29,9 @@ static int print_qubit_with_indent(Qubit* qubit, int indent) {
         print_with_indent(indent, "<measured>\n");
         print_with_indent(indent, "value: %s\n", RESULT_AS_STRING(qubit->value));
     }
-    return 0;
 }
 
-static int print_qupair_with_indent(Qupair* qupair, int indent) {
+static void print_qupair_with_indent(Qupair* qupair, int indent) {
     print_with_indent(indent, "index: %d\n", qupair->index);
     print_with_indent(indent, "number of entangled qubits: %d\n", qupair->qubits_num);
     print_with_indent(indent, "indices of entangled qubits: ");
@@ -51,84 +47,78 @@ static int print_qupair_with_indent(Qupair* qupair, int indent) {
             printf("%d", (i >> (qupair->qubits_num - 1 - j)) & 0x1);
         }
         printf(">:    ");
-        print_complex(gsl_vector_complex_get(qupair->state, i));
+        print_complex(ket_get(qupair->state, i));
         printf("\n");
     }
-    return 0;
 }
 
-int print_with_indent(int indent, char* string, ...) {
+void print_with_indent(int indent, char* string, ...) {
     va_list ap;
     fprintf(stdout, "%*s", indent * 4, "");
     va_start(ap, string);
     vfprintf(stdout, string, ap);
     va_end(ap);
-    return 0;
 }
 
-int print_double(double value) {
-    if (double_is_zero(value - round(value))) {
-        printf("%d", (int)round(value));
+void print_float(float value) {
+    if (float_equal(value, roundf(value))) {
+        printf("%d", (int)roundf(value));
     }
     else {
-        printf("%.3lf", value);
+        printf("%.3f", value);
     }
-    return 0;
 }
 
-int print_complex(gsl_complex value) {
-    double real = GSL_REAL(value);
-    double imag = GSL_IMAG(value);
+void print_complex(Complex value) {
+    float real = REAL(value);
+    float imag = IMAG(value);
     if (complex_is_zero(value)) {
         printf("0");
     }
-    else if(double_is_zero(real)) {
-        print_double(imag);
+    else if(float_is_zero(real)) {
+        print_float(imag);
         printf("i");
     }
-    else if (double_is_zero(imag)) {
-        print_double(real);
+    else if (float_is_zero(imag)) {
+        print_float(real);
     }
     else {
-        print_double(real);
+        print_float(real);
         printf(" + ");
-        print_double(imag);
+        print_float(imag);
         printf("i");
     }
-    return 0;
 }
 
-int print_matrix_complex(gsl_matrix_complex* m) {
-    for (size_t i = 0; i < m->size1; ++i) {
+void print_matrix(Matrix m) {
+    for (int i = 0; i < m.size1; ++i) {
         printf(" ");
-        for (size_t j = 0; j < m->size2; ++j) {
-            print_complex(gsl_matrix_complex_get(m, i, j));
+        for (int j = 0; j < m.size2; ++j) {
+            print_complex(matrix_get(m, i, j));
             printf("  ");
         }
-        printf(" \n");
+        printf("\n");
     }
-    return 0;
 }
 
-int print_vector_complex(gsl_vector_complex* v) {
+void print_ket(Ket v) {
     printf("| ");
-    for (size_t i = 0; i < v->size; ++i) {
-        print_complex(gsl_vector_complex_get(v, i));
+    for (int i = 0; i < v.size; ++i) {
+        print_complex(ket_get(v, i));
         printf("  ");
     }
     printf(" |");
-    return 0;
 }
 
-int print_qubit(Qubit* qubit) {
-    return print_qubit_with_indent(qubit, 0);
+void print_qubit(Qubit* qubit) {
+    print_qubit_with_indent(qubit, 0);
 }
 
-int print_qupair(Qupair* qupair) {
-    return print_qupair_with_indent(qupair, 0);
+void print_qupair(Qupair* qupair) {
+    print_qupair_with_indent(qupair, 0);
 }
 
-int print_qureg(Qureg* qureg) {
+void print_qureg(Qureg* qureg) {
     printf("number of qubits: %d\n", qureg->qubits_num);
     printf("qubits:\n");
     for(int i = 0; i < qureg->qubits_num; ++i) {
@@ -142,21 +132,4 @@ int print_qureg(Qureg* qureg) {
         printf("\n");
     }
     printf("\n");
-    return 0;
-}
-
-bool complex_is_zero(gsl_complex v) {
-    return GSL_REAL(v) > -EPSILON && GSL_REAL(v) < EPSILON && GSL_IMAG(v) > -EPSILON && GSL_IMAG(v) < EPSILON;
-}
-
-bool complex_equal(gsl_complex a, gsl_complex b) {
-    return complex_is_zero(gsl_complex_sub(a, b));
-}
-
-bool double_is_zero(double v) {
-    return v > -EPSILON && v < EPSILON;
-}
-
-bool double_equal(double a, double b) {
-    return double_is_zero(a - b);
 }
