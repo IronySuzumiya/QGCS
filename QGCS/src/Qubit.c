@@ -132,20 +132,20 @@ int results_as_int(Qubit** qubits, int qubits_num) {
 }
 
 void check_qubit(Qubit* qubit) {
-    float alpha2 = complex_norm(ket_get(qubit->state, 0));
-    float beta2 = complex_norm(ket_get(qubit->state, 1));
-    assert(float_equal(alpha2 + beta2, 1));
+    double alpha2 = complex_norm(ket_get(qubit->state, 0));
+    double beta2 = complex_norm(ket_get(qubit->state, 1));
+    assert(double_equal(alpha2 + beta2, 1));
 }
 
 void check_qupair(Qupair* qupair) {
-    float sum = 0;
+    double sum = 0;
     for (int j = 0; j < qupair->states_num; ++j) {
         sum += complex_norm(ket_get(qupair->state, j));
     }
-    if (!float_equal(sum, 1)) {
+    if (!double_equal(sum, 1)) {
         ;
     }
-    //assert(float_equal(sum, 1));
+    //assert(double_equal(sum, 1));
 }
 
 void check_qureg(Qureg* qureg) {

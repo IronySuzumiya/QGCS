@@ -12,6 +12,13 @@
 #include "Const.h"
 #include "Memory.h"
 
+static double calculate_success_probability(int marked_count, int database_size, int iterations_num) {
+    double a = asin(sqrt(marked_count * 1.0 / database_size));
+    double b = (2.0 * iterations_num + 1.0) * a;
+    double c = pow(sin(b), 2);
+    return c;
+}
+
 int apply_Grover(int database_size, int* marked_indices, int marked_indices_num, int iterations_num) {
     // Check validity
     for (int i = 0; i < marked_indices_num; ++i) {
@@ -131,9 +138,12 @@ int find_minimum(int* database, int database_size) {
             return min_index;
         }
 
-        int iterations_num = (int)round(PI / 4.0 * sqrt(database_size * 1.0 / marked_count));
-        double successProbability =
-            pow(sin((2.0 * iterations_num + 1.0) * asin(sqrt(marked_count * 1.0 / database_size))), 2.0);
+        int iterations_num = (int)ceil(PI / 4.0 * sqrt(database_size * 1.0 / marked_count));
+        double successProbability = calculate_success_probability(marked_count, database_size, iterations_num);
+        while(successProbability < 0.2) {
+            iterations_num += 2;
+            successProbability = calculate_success_probability(marked_count, database_size, iterations_num);
+        }
         int trial_count = 0;
         
         while(1) {
@@ -142,7 +152,7 @@ int find_minimum(int* database, int database_size) {
                 min_index = index;
                 break;
             }
-            assert(++trial_count < 1.0 / successProbability * 3);
+            assert(++trial_count < 1.0 / successProbability * 5);
         }
     }
     int_memory_return(marked_elements, database_size - 1);

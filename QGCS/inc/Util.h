@@ -6,7 +6,7 @@
 #define BOOL_AS_STRING(b) ((b) ? "True" : "False")
 
 void print_with_indent(int indent, char* string, ...);
-void print_float(float value);
+void print_double(double value);
 void print_complex(Complex value);
 void print_matrix(Matrix m);
 void print_ket(Ket v);

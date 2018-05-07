@@ -83,7 +83,7 @@ int test_find_minimum() {
 int test_ket_positions_swap() {
     Ket v = ket_calloc(8);
     for (int i = 0; i < 8; ++i) {
-        ket_set(v, i, complex_rect((float)i, 0));
+        ket_set(v, i, complex_rect((double)i, 0));
     }
     print_ket(v);
     printf("\n");
@@ -113,7 +113,7 @@ int test_possibility() {
 int main() {
     //gate_init(2333);
     memory_init();
-    unsigned int seed = 1525627507; //1525627507 <-use this //1525627293
+    unsigned int seed = (unsigned int)time(NULL); //1525627507 <-use this //1525627293
     srand(seed);
     test_find_minimum();
     //test_measurement();

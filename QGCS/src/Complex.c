@@ -4,12 +4,12 @@
 #include "Complex.h"
 #include "Const.h"
 
-Complex complex_rect(float real, float imag) {
+Complex complex_rect(double real, double imag) {
     return (Complex) { real, imag };
 }
 
-Complex complex_polar(float mod, float arg) {
-    return (Complex) { mod * cosf(arg), mod * sinf(arg) };
+Complex complex_polar(double mod, double arg) {
+    return (Complex) { mod * cos(arg), mod * sin(arg) };
 }
 
 Complex complex_neg(Complex a) {
@@ -35,7 +35,7 @@ Complex complex_mul(Complex a, Complex b) {
 Complex complex_div(Complex a, Complex b) {
     assert(!complex_is_zero(b));
     Complex c = complex_div_real(complex_mul(a, complex_conj(b)), complex_norm(b));
-    assert(complex_equal(complex_mul(b, c), a));
+    //assert(complex_equal(complex_mul(b, c), a));
     return c;
 }
 
@@ -63,25 +63,25 @@ Complex complex_pow(Complex a, int b) {
 }
 
 Complex complex_sqrt(Complex a) {
-    float alpha = sqrtf(complex_abs(a) + REAL(a));
-    return (Complex) { alpha / sqrtf(2), IMAG(a) / (sqrtf(2) * alpha) };
+    double alpha = sqrt(complex_abs(a) + REAL(a));
+    return (Complex) { alpha / sqrt(2), IMAG(a) / (sqrt(2) * alpha) };
 }
 
-Complex complex_mul_real(Complex a, float b) {
+Complex complex_mul_real(Complex a, double b) {
     return (Complex) { REAL(a) * b, IMAG(a) * b };
 }
 
-Complex complex_div_real(Complex a, float b) {
-    assert(!float_is_zero(b));
+Complex complex_div_real(Complex a, double b) {
+    //assert(!double_is_zero(b));
     return (Complex) { REAL(a) / b, IMAG(a) / b };
 }
 
-float complex_norm(Complex a) {
+double complex_norm(Complex a) {
     return REAL(a) * REAL(a) + IMAG(a) * IMAG(a);
 }
 
-float complex_abs(Complex a) {
-    return sqrtf(complex_norm(a));
+double complex_abs(Complex a) {
+    return sqrt(complex_norm(a));
 }
 
 int complex_is_real(Complex a) {
@@ -100,10 +100,10 @@ int complex_equal(Complex a, Complex b) {
     return complex_is_zero(complex_sub(a, b));
 }
 
-int float_is_zero(float a) {
+int double_is_zero(double a) {
     return a < EPSILON && a > -EPSILON;
 }
 
-int float_equal(float a, float b) {
-    return float_is_zero(a - b);
+int double_equal(double a, double b) {
+    return double_is_zero(a - b);
 }

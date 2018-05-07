@@ -234,11 +234,11 @@ Ket matrix_mul_ket(Matrix a, Ket b) {
         ket_set(c, i, temp);
     }
 
-    float sum = 0;
+    /*double sum = 0;
     for (int i = 0; i < c.size; ++i) {
         sum += complex_norm(ket_get(c, i));
     }
-    assert(float_equal(sum, 1));
+    assert(double_equal(sum, 1));*/
 
     return c;
 }

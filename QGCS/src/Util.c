@@ -60,9 +60,9 @@ void print_with_indent(int indent, char* string, ...) {
     va_end(ap);
 }
 
-void print_float(float value) {
-    if (float_equal(value, roundf(value))) {
-        printf("%d", (int)roundf(value));
+void print_double(double value) {
+    if (double_equal(value, round(value))) {
+        printf("%d", (int)round(value));
     }
     else {
         printf("%.3f", value);
@@ -70,22 +70,22 @@ void print_float(float value) {
 }
 
 void print_complex(Complex value) {
-    float real = REAL(value);
-    float imag = IMAG(value);
+    double real = REAL(value);
+    double imag = IMAG(value);
     if (complex_is_zero(value)) {
         printf("0");
     }
-    else if(float_is_zero(real)) {
-        print_float(imag);
+    else if(double_is_zero(real)) {
+        print_double(imag);
         printf("i");
     }
-    else if (float_is_zero(imag)) {
-        print_float(real);
+    else if (double_is_zero(imag)) {
+        print_double(real);
     }
     else {
-        print_float(real);
+        print_double(real);
         printf(" + ");
-        print_float(imag);
+        print_double(imag);
         printf("i");
     }
 }

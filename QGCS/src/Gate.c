@@ -55,7 +55,7 @@ void apply_H_dagger(Qubit* qubit) {
     apply_H(qubit);
 }
 
-static Complex H_block[4] = { { 0.707f, 0.0f }, { 0.707f, 0.0f }, { 0.707f, 0.0f }, { -0.707f, 0.0f } };
+static Complex H_block[4] = { { 0.70710678, 0 }, { 0.70710678, 0 }, { 0.70710678, 0 }, { -0.70710678, 0 } };
 
 Matrix H = {
     H_block, 2, 2
@@ -116,7 +116,7 @@ void apply_X_dagger(Qubit* qubit) {
     apply_X(qubit);
 }
 
-void apply_R(Qubit* qubit, float phi) {
+void apply_R(Qubit* qubit, double phi) {
     assert(!qubit->measured);
     if (!qubit->entangled) {
         Complex temp = complex_mul(ket_get(qubit->state, 1), complex_polar(1.0f, phi));
@@ -152,7 +152,7 @@ void apply_R(Qubit* qubit, float phi) {
     }
 }
 
-void apply_R_dagger(Qubit* qubit, float phi) {
+void apply_R_dagger(Qubit* qubit, double phi) {
     apply_R(qubit, -phi);
 }
 
@@ -315,7 +315,7 @@ void apply_CNOT_dagger(Qubit** qubits, int qubits_num) {
     apply_CNOT(qubits, qubits_num);
 }
 
-static void do_R(Ket combined_inputs, int controlled, int all_involved_qubits_num, int qubits_num, float phi) {
+static void do_R(Ket combined_inputs, int controlled, int all_involved_qubits_num, int qubits_num, double phi) {
     assert(all_involved_qubits_num >= qubits_num);
 
     if (all_involved_qubits_num == qubits_num) {
@@ -333,7 +333,7 @@ static void do_R(Ket combined_inputs, int controlled, int all_involved_qubits_nu
     }
 }
 
-void apply_CR_on_int(Qubit** qubits, int qubits_num, int controlled, float phi) {
+void apply_CR_on_int(Qubit** qubits, int qubits_num, int controlled, double phi) {
     assert(controlled < pow(2, qubits_num - 1));
     apply_controlled_gate_1
     if (all_separable) {
@@ -347,15 +347,15 @@ void apply_CR_on_int(Qubit** qubits, int qubits_num, int controlled, float phi) 
     apply_controlled_gate_4
 }
 
-void apply_CR_dagger_on_int(Qubit** qubits, int qubits_num, int controlled, float phi) {
+void apply_CR_dagger_on_int(Qubit** qubits, int qubits_num, int controlled, double phi) {
     apply_CR_on_int(qubits, qubits_num, controlled, -phi);
 }
 
-void apply_CR(Qubit** qubits, int qubits_num, float phi) {
+void apply_CR(Qubit** qubits, int qubits_num, double phi) {
     apply_CR_on_int(qubits, qubits_num, (int)(pow(2, qubits_num - 1) - 1), phi);
 }
 
-void apply_CR_dagger(Qubit** qubits, int qubits_num, float phi) {
+void apply_CR_dagger(Qubit** qubits, int qubits_num, double phi) {
     apply_CR(qubits, qubits_num, -phi);
 }
 
@@ -409,12 +409,12 @@ void apply_PauliZ_M(Qubit* qubit) {
         return;
     }
     if (!qubit->entangled) {
-        float p_zero = complex_norm(ket_get(qubit->state, 0));
-        float p_one = complex_norm(ket_get(qubit->state, 1));
-        assert(float_equal(p_zero + p_one, 1.0));
+        double p_zero = complex_norm(ket_get(qubit->state, 0));
+        double p_one = complex_norm(ket_get(qubit->state, 1));
+        assert(double_equal(p_zero + p_one, 1.0));
         
-        qubit->value = float_is_zero(p_zero) ? One
-            : float_is_zero(p_one) ? Zero
+        qubit->value = double_is_zero(p_zero) ? One
+            : double_is_zero(p_one) ? Zero
             : rand() / (RAND_MAX + 1.0) < p_zero ? Zero : One;
         qubit->measured = 1;
     }
@@ -437,16 +437,16 @@ void apply_PauliZ_M(Qubit* qubit) {
         }
         assert(index_one == index_zero && index_one == qubit->qupair->states_num / 2);
 
-        float p_zero = 0.0;
-        float p_one = 0.0;
+        double p_zero = 0.0;
+        double p_one = 0.0;
         for (int i = 0; i < qubit->qupair->states_num / 2; ++i) {
             p_zero += complex_norm(ket_get(qubit->qupair->state, indices_where_qubit_is_zero[i]));
             p_one += complex_norm(ket_get(qubit->qupair->state, indices_where_qubit_is_one[i]));
         }
-        assert(float_equal(p_zero + p_one, 1.0));
+        assert(double_equal(p_zero + p_one, 1.0));
         
-        qubit->value = float_is_zero(p_zero) ? One
-            : float_is_zero(p_one) ? Zero
+        qubit->value = double_is_zero(p_zero) ? One
+            : double_is_zero(p_one) ? Zero
             : rand() / (RAND_MAX + 1.0) < p_zero ? Zero : One;
         qubit->measured = 1;
         qubit->entangled = 0;
@@ -455,14 +455,14 @@ void apply_PauliZ_M(Qubit* qubit) {
         if (qubit->value == Zero) {
             for (int i = 0; i < qubit->qupair->states_num / 2; ++i) {
                 Complex v = ket_get(qubit->qupair->state, indices_where_qubit_is_zero[i]);
-                v = complex_div(v, complex_rect(sqrtf(p_zero), 0));
+                v = complex_div(v, complex_rect(sqrt(p_zero), 0));
                 ket_set(phi_prime, i, v);
             }
         }
         else {
             for (int i = 0; i < qubit->qupair->states_num / 2; ++i) {
                 Complex v = ket_get(qubit->qupair->state, indices_where_qubit_is_one[i]);
-                v = complex_div(v, complex_rect(sqrtf(p_one), 0));
+                v = complex_div(v, complex_rect(sqrt(p_one), 0));
                 ket_set(phi_prime, i, v);
             }
         }
