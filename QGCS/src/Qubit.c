@@ -142,10 +142,7 @@ void check_qupair(Qupair* qupair) {
     for (int j = 0; j < qupair->states_num; ++j) {
         sum += complex_norm(ket_get(qupair->state, j));
     }
-    if (!double_equal(sum, 1)) {
-        ;
-    }
-    //assert(double_equal(sum, 1));
+    assert(double_equal(sum, 1));
 }
 
 void check_qureg(Qureg* qureg) {

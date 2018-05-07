@@ -111,9 +111,8 @@ int test_possibility() {
 }
 
 int main() {
-    //gate_init(2333);
     memory_init();
-    unsigned int seed = (unsigned int)time(NULL); //1525627507 <-use this //1525627293
+    unsigned int seed = (unsigned int)time(NULL); //1525627507 //1525627293
     srand(seed);
     test_find_minimum();
     //test_measurement();

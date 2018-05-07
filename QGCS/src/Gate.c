@@ -164,115 +164,171 @@ void apply_Z_dagger(Qubit* qubit) {
     apply_Z(qubit);
 }
 
-#define apply_controlled_gate_1 \
-    Qureg* qureg = qubits[0]->qureg;                \
-    for (int i = 1; i < qubits_num; ++i) {          \
-        assert(qubits[i]->qureg == qureg);          \
-        assert(!qubits[i]->measured);               \
-    }                                               \
-    int all_separable = 1;                          \
-    for (int i = 0; i < qubits_num; ++i) {          \
-        if (qubits[i]->entangled) {                 \
-            all_separable = 0;                      \
-            break;                                  \
-        }                                           \
-    }                                               \
-    Ket combined_inputs;                            \
-    int new_qupairs_num;                            \
-    int all_involved_qubits_num;                    \
-    int* order;
+static int check_all_separable(Qubit** qubits, int qubits_num) {
+    Qureg* qureg = qubits[0]->qureg;
+    for (int i = 1; i < qubits_num; ++i) {
+        assert(qubits[i]->qureg == qureg);
+        assert(!qubits[i]->measured);
+    }
+    int all_separable = 1;
+    for (int i = 0; i < qubits_num; ++i) {
+        if (qubits[i]->entangled) {
+            all_separable = 0;
+            break;
+        }
+    }
+    return all_separable;
+}
 
-#define apply_controlled_gate_2 \
-    combined_inputs = combine_qubits(qubits, qubits_num);   \
-    all_involved_qubits_num = qubits_num;                   \
-    new_qupairs_num = qureg->qupairs_num - qubits_num + 1;
+static int* get_dirty_list_of_separable_qubits(Qubit** qubits, int qubits_num) {
+    Qureg* qureg = qubits[0]->qureg;
+    int* dirty = int_memory_get(qureg->qupairs_num);
+    for (int i = 0; i < qureg->qupairs_num; ++i) {
+        dirty[i] = 0;
+    }
+    for (int i = 0; i < qubits_num; ++i) {
+        dirty[qubits[i]->qupair->index] = 1;
+    }
+    return dirty;
+}
 
-#define apply_controlled_gate_3 \
-    Qupair** qupairs = (Qupair**)pointer_memory_get(qubits_num);                                        \
-    int qupairs_num = get_exclusive_qupairs_from_qubits(qubits, qubits_num, qupairs);                   \
-    int separable_qubits_num = get_separable_qubits_num(qubits, qubits_num);                            \
-    all_involved_qubits_num = separable_qubits_num + get_entangled_qubits_num(qupairs, qupairs_num);    \
-    new_qupairs_num = qureg->qupairs_num - qupairs_num - separable_qubits_num + 1;                      \
-    order = int_memory_get(all_involved_qubits_num);                                                    \
-    unfold_qupairs_and_qubits(order, qupairs, qupairs_num, qubits, qubits_num);                         \
-    Qubit** separable_qubits = (Qubit**)pointer_memory_get(separable_qubits_num);                       \
-    get_separable_qubits(separable_qubits, qubits, qubits_num);                                         \
-    combined_inputs = combine_qupairs(qupairs, qupairs_num);                                            \
-    if (separable_qubits_num > 0) {                                                                     \
-        Ket another_combined_inputs = combine_qubits(separable_qubits, separable_qubits_num);           \
-        Ket temp = ket_Kronecker_product(combined_inputs, another_combined_inputs);                     \
-        ket_free(combined_inputs);                                                                      \
-        ket_free(another_combined_inputs);                                                              \
-        combined_inputs = temp;                                                                         \
-    }                                                                                                   \
-    pointer_memory_return(qupairs, qubits_num);                                                         \
-    pointer_memory_return(separable_qubits, separable_qubits_num);                                      \
-    for (int i = 0; i < qubits_num; ++i) {                                                              \
-        for (int j = i; j < all_involved_qubits_num; ++j) {                                             \
-            if (order[j] == qubits[i]->index) {                                                         \
-                ket_positions_swap(combined_inputs, all_involved_qubits_num, j, i);          \
-                int temp = order[j];                                                                    \
-                order[j] = order[i];                                                                    \
-                order[i] = temp;                                                                        \
-            }                                                                                           \
-        }                                                                                               \
+static int* get_dirty_list_of_mixed_qubits(Qubit** qubits, int* order, int all_involved_qubits_num) {
+    Qureg* qureg = qubits[0]->qureg;
+    int* dirty = int_memory_get(qureg->qupairs_num);
+    for (int i = 0; i < qureg->qupairs_num; ++i) {
+        dirty[i] = 0;
+    }
+    for (int i = 0; i < all_involved_qubits_num; ++i) {
+        dirty[qureg->qubits[order[i]]->qupair->index] = 1;
+    }
+    return dirty;
+}
+
+static void prepare_new_qupair_list(Qureg* qureg, int* dirty, int new_qupairs_num) {
+    Qupair** new_qupairs = (Qupair**)pointer_memory_get(new_qupairs_num);
+    int new_qupair_index = 0;
+    for (int i = 0; i < qureg->qupairs_num; ++i) {
+        if (!dirty[i]) {
+            new_qupairs[new_qupair_index] = qureg->qupairs[i];
+            new_qupairs[new_qupair_index]->index = new_qupair_index;
+            ++new_qupair_index;
+        }
+        else {
+            free_qupair(qureg->qupairs[i]);
+        }
+    }
+    int_memory_return(dirty, qureg->qupairs_num);
+    pointer_memory_return(qureg->qupairs, qureg->qupairs_num);
+    qureg->qupairs = new_qupairs;
+    qureg->qupairs_num = new_qupairs_num;
+}
+
+static void set_new_qupair_profile(Qupair* new_qupair, Qureg* qureg, int qubits_num, Ket combined_inputs) {
+    qureg->qupairs[qureg->qupairs_num - 1] = new_qupair;
+    new_qupair->index = qureg->qupairs_num - 1;
+    new_qupair->qureg = qureg;
+    new_qupair->qubits_num = qubits_num;
+    new_qupair->qubits_indices = int_memory_get(qubits_num);
+    new_qupair->states_num = combined_inputs.size;
+    new_qupair->state = combined_inputs;
+}
+
+static void set_new_qupair_qubits_indices_of_separable_qubits(Qupair* new_qupair, Qubit** qubits, int qubits_num) {
+    for (int i = 0; i < qubits_num; ++i) {
+        new_qupair->qubits_indices[i] = qubits[i]->index;
+        qubits[i]->qupair = new_qupair;
+        qubits[i]->entangled = 1;
+    }
+}
+
+static void set_new_qupair_qubits_indices_of_mixed_qubits(Qupair* new_qupair, Qureg* qureg, int* order, int all_involved_qubits_num) {
+    for (int i = 0; i < all_involved_qubits_num; ++i) {
+        new_qupair->qubits_indices[i] = order[i];
+        qureg->qubits[order[i]]->qupair = new_qupair;
+        qureg->qubits[order[i]]->entangled = 1;
+    }
+    int_memory_return(order, all_involved_qubits_num);
+}
+
+static void set_new_qupair_of_separable_qubits(Qubit** qubits, int qubits_num, Ket combined_inputs) {
+    Qupair* new_qupair = (Qupair*)qupair_memory_get(1);
+    set_new_qupair_profile(new_qupair, qubits[0]->qureg, qubits_num, combined_inputs);
+    set_new_qupair_qubits_indices_of_separable_qubits(new_qupair, qubits, qubits_num);
+}
+
+static void set_new_qupair_of_mixed_qubits(Qubit** qubits, int* order, int all_involved_qubits_num, Ket combined_inputs) {
+    Qupair* new_qupair = (Qupair*)qupair_memory_get(1);
+    set_new_qupair_profile(new_qupair, qubits[0]->qureg, all_involved_qubits_num, combined_inputs);
+    set_new_qupair_qubits_indices_of_mixed_qubits(new_qupair, qubits[0]->qureg, order, all_involved_qubits_num);
+}
+
+static void set_new_qupair_list_of_separable_qubits(Qubit** qubits, int qubits_num, int new_qupairs_num, Ket combined_inputs) {
+    Qureg* qureg = qubits[0]->qureg;
+    int* dirty = get_dirty_list_of_separable_qubits(qubits, qubits_num);
+    prepare_new_qupair_list(qureg, dirty, new_qupairs_num);
+    set_new_qupair_of_separable_qubits(qubits, qubits_num, combined_inputs);
+}
+
+static void set_new_qupair_list_of_mixed_qubits(Qubit** qubits, int* order, int all_involved_qubits_num, int new_qupairs_num, Ket combined_inputs) {
+    Qureg* qureg = qubits[0]->qureg;
+    int* dirty = get_dirty_list_of_mixed_qubits(qubits, order, all_involved_qubits_num);
+    prepare_new_qupair_list(qureg, dirty, new_qupairs_num);
+    set_new_qupair_of_mixed_qubits(qubits, order, all_involved_qubits_num, combined_inputs);
+}
+
+static void update_qureg_after_applying_gate_on_separable_qubits(Qubit** qubits, int qubits_num, Ket combined_inputs) {
+    Qureg* qureg = qubits[0]->qureg;
+    set_new_qupair_list_of_separable_qubits(qubits, qubits_num, qureg->qupairs_num - qubits_num + 1, combined_inputs);
+    check_entanglement(qureg->qupairs[qureg->qupairs_num - 1]);
+}
+
+static int* shuffle_qubit_list(int all_involved_qubits_num, Qupair** qupairs, int qupairs_num, Qubit** qubits, int qubits_num, Ket combined_inputs) {
+    int *order = int_memory_get(all_involved_qubits_num);
+    unfold_qupairs_and_qubits(order, qupairs, qupairs_num, qubits, qubits_num);
+    for (int i = 0; i < qubits_num; ++i) {
+        for (int j = i; j < all_involved_qubits_num; ++j) {
+            if (order[j] == qubits[i]->index) {
+                ket_positions_swap(combined_inputs, all_involved_qubits_num, j, i);
+                int temp = order[j];
+                order[j] = order[i];
+                order[i] = temp;
+            }
+        }
+    }
+    return order;
+}
+
+static Ket combine_mixed_qubits(Qubit** qubits, int qubits_num, int** order, int* all_involved_qubits_num, int* new_qupairs_num) {
+    Qupair** qupairs = (Qupair**)pointer_memory_get(qubits_num);
+    int qupairs_num = get_exclusive_qupairs_from_qubits(qubits, qubits_num, qupairs);
+    int separable_qubits_num = get_separable_qubits_num(qubits, qubits_num);
+    *new_qupairs_num = qubits[0]->qureg->qupairs_num - qupairs_num - separable_qubits_num + 1;
+    *all_involved_qubits_num = separable_qubits_num + get_entangled_qubits_num(qupairs, qupairs_num);
+    Ket combined_inputs = combine_qupairs(qupairs, qupairs_num);
+
+    if (separable_qubits_num > 0) {
+        Qubit** separable_qubits = (Qubit**)pointer_memory_get(separable_qubits_num);
+        get_separable_qubits(separable_qubits, qubits, qubits_num);
+        Ket another_combined_inputs = combine_qubits(separable_qubits, separable_qubits_num);
+        Ket temp = ket_Kronecker_product(combined_inputs, another_combined_inputs);
+        ket_free(combined_inputs);
+        ket_free(another_combined_inputs);
+        combined_inputs = temp;
+        pointer_memory_return(separable_qubits, separable_qubits_num);
     }
 
-#define apply_controlled_gate_4 \
-    int* dirty = int_memory_get(qureg->qupairs_num);                        \
-    for (int i = 0; i < qureg->qupairs_num; ++i) {                          \
-        dirty[i] = 0;                                                       \
-    }                                                                       \
-    if (all_separable) {                                                    \
-        for (int i = 0; i < qubits_num; ++i) {                              \
-            dirty[qubits[i]->qupair->index] = 1;                            \
-        }                                                                   \
-    }                                                                       \
-    else {                                                                  \
-        for (int i = 0; i < all_involved_qubits_num; ++i) {                 \
-            dirty[qureg->qubits[order[i]]->qupair->index] = 1;              \
-        }                                                                   \
-    }                                                                       \
-    Qupair** new_qupairs = (Qupair**)pointer_memory_get(new_qupairs_num);   \
-    int new_qupair_index = 0;                                               \
-    for (int i = 0; i < qureg->qupairs_num; ++i) {                          \
-        if (!dirty[i]) {                                                    \
-            new_qupairs[new_qupair_index] = qureg->qupairs[i];              \
-            new_qupairs[new_qupair_index]->index = new_qupair_index;        \
-            ++new_qupair_index;                                             \
-        }                                                                   \
-        else {                                                              \
-            free_qupair(qureg->qupairs[i]);                                 \
-        }                                                                   \
-    }                                                                       \
-    int_memory_return(dirty, qureg->qupairs_num);                           \
-    Qupair* new_qupair = (Qupair*)qupair_memory_get(1);                     \
-    new_qupairs[new_qupair_index] = new_qupair;                             \
-    new_qupair->index = new_qupair_index;                                   \
-    new_qupair->qureg = qureg;                                              \
-    new_qupair->qubits_num = all_involved_qubits_num;                       \
-    new_qupair->qubits_indices = int_memory_get(all_involved_qubits_num);   \
-    new_qupair->states_num = combined_inputs.size;                          \
-    new_qupair->state = combined_inputs;                                    \
-    if (all_separable) {                                                    \
-        for (int i = 0; i < qubits_num; ++i) {                              \
-            new_qupair->qubits_indices[i] = qubits[i]->index;               \
-            qubits[i]->qupair = new_qupair;                                 \
-            qubits[i]->entangled = 1;                                       \
-        }                                                                   \
-    }                                                                       \
-    else {                                                                  \
-        for (int i = 0; i < all_involved_qubits_num; ++i) {                 \
-            new_qupair->qubits_indices[i] = order[i];                       \
-            qureg->qubits[order[i]]->qupair = new_qupair;                   \
-            qureg->qubits[order[i]]->entangled = 1;                         \
-        }                                                                   \
-        int_memory_return(order, all_involved_qubits_num);                  \
-    }                                                                       \
-    pointer_memory_return(qureg->qupairs, qureg->qupairs_num);              \
-    qureg->qupairs = new_qupairs;                                           \
-    qureg->qupairs_num = new_qupairs_num;                                   \
-    check_entanglement(new_qupair);
+    *order = shuffle_qubit_list(*all_involved_qubits_num, qupairs, qupairs_num, qubits, qubits_num, combined_inputs);
+
+    pointer_memory_return(qupairs, qubits_num);
+
+    return combined_inputs;
+}
+
+static void update_qureg_after_applying_gate_on_mixed_qubits(Qubit** qubits, int* order, int all_involved_qubits_num, int new_qupairs_num, Ket combined_inputs) {
+    Qureg* qureg = qubits[0]->qureg;
+    set_new_qupair_list_of_mixed_qubits(qubits, order, all_involved_qubits_num, new_qupairs_num, combined_inputs);
+    check_entanglement(qureg->qupairs[qureg->qupairs_num - 1]);
+}
 
 static void do_X(Ket combined_inputs, int controlled, int all_involved_qubits_num, int qubits_num) {
     assert(all_involved_qubits_num >= qubits_num);
@@ -291,16 +347,21 @@ static void do_X(Ket combined_inputs, int controlled, int all_involved_qubits_nu
 
 void apply_CNOT_on_int(Qubit** qubits, int qubits_num, int controlled) {
     assert(controlled < pow(2, qubits_num - 1));
-    apply_controlled_gate_1
-    if (all_separable) {
-        apply_controlled_gate_2
-        do_X(combined_inputs, controlled, all_involved_qubits_num, qubits_num);
+    Ket combined_inputs;
+    int all_involved_qubits_num;
+    int new_qupairs_num;
+    int* order = NULL;
+
+    if (check_all_separable(qubits, qubits_num)) {
+        combined_inputs = combine_qubits(qubits, qubits_num);
+        do_X(combined_inputs, controlled, qubits_num, qubits_num);
+        update_qureg_after_applying_gate_on_separable_qubits(qubits, qubits_num, combined_inputs);
     }
     else {
-        apply_controlled_gate_3
+        combined_inputs = combine_mixed_qubits(qubits, qubits_num, &order, &all_involved_qubits_num, &new_qupairs_num);
         do_X(combined_inputs, controlled, all_involved_qubits_num, qubits_num);
+        update_qureg_after_applying_gate_on_mixed_qubits(qubits, order, all_involved_qubits_num, new_qupairs_num, combined_inputs);
     }
-    apply_controlled_gate_4
 }
 
 void apply_CNOT_dagger_on_int(Qubit** qubits, int qubits_num, int controlled) {
@@ -335,16 +396,21 @@ static void do_R(Ket combined_inputs, int controlled, int all_involved_qubits_nu
 
 void apply_CR_on_int(Qubit** qubits, int qubits_num, int controlled, double phi) {
     assert(controlled < pow(2, qubits_num - 1));
-    apply_controlled_gate_1
-    if (all_separable) {
-        apply_controlled_gate_2
-        do_R(combined_inputs, controlled, all_involved_qubits_num, qubits_num, phi);
+    Ket combined_inputs;
+    int all_involved_qubits_num;
+    int new_qupairs_num;
+    int* order = NULL;
+
+    if (check_all_separable(qubits, qubits_num)) {
+        combined_inputs = combine_qubits(qubits, qubits_num);
+        do_R(combined_inputs, controlled, qubits_num, qubits_num, phi);
+        update_qureg_after_applying_gate_on_separable_qubits(qubits, qubits_num, combined_inputs);
     }
     else {
-        apply_controlled_gate_3
+        combined_inputs = combine_mixed_qubits(qubits, qubits_num, &order, &all_involved_qubits_num, &new_qupairs_num);
         do_R(combined_inputs, controlled, all_involved_qubits_num, qubits_num, phi);
+        update_qureg_after_applying_gate_on_mixed_qubits(qubits, order, all_involved_qubits_num, new_qupairs_num, combined_inputs);
     }
-    apply_controlled_gate_4
 }
 
 void apply_CR_dagger_on_int(Qubit** qubits, int qubits_num, int controlled, double phi) {
@@ -378,16 +444,21 @@ static void do_Z(Ket combined_inputs, int controlled, int all_involved_qubits_nu
 
 void apply_CZ_on_int(Qubit** qubits, int qubits_num, int controlled) {
     assert(controlled < pow(2, qubits_num - 1));
-    apply_controlled_gate_1
-    if (all_separable) {
-        apply_controlled_gate_2
-        do_Z(combined_inputs, controlled, all_involved_qubits_num, qubits_num);
+    Ket combined_inputs;
+    int all_involved_qubits_num;
+    int new_qupairs_num;
+    int* order = NULL;
+
+    if (check_all_separable(qubits, qubits_num)) {
+        combined_inputs = combine_qubits(qubits, qubits_num);
+        do_Z(combined_inputs, controlled, qubits_num, qubits_num);
+        update_qureg_after_applying_gate_on_separable_qubits(qubits, qubits_num, combined_inputs);
     }
     else {
-        apply_controlled_gate_3
+        combined_inputs = combine_mixed_qubits(qubits, qubits_num, &order, &all_involved_qubits_num, &new_qupairs_num);
         do_Z(combined_inputs, controlled, all_involved_qubits_num, qubits_num);
+        update_qureg_after_applying_gate_on_mixed_qubits(qubits, order, all_involved_qubits_num, new_qupairs_num, combined_inputs);
     }
-    apply_controlled_gate_4
 }
 
 void apply_CZ_dagger_on_int(Qubit** qubits, int qubits_num, int controlled) {
@@ -507,16 +578,21 @@ static void do_P(Ket combined_inputs, int all_involved_qubits_num, int qubits_nu
 }
 
 void apply_P(Qubit** qubits, int qubits_num) {
-    apply_controlled_gate_1
-    if (all_separable) {
-        apply_controlled_gate_2
-        do_P(combined_inputs, all_involved_qubits_num, qubits_num);
+    Ket combined_inputs;
+    int all_involved_qubits_num;
+    int new_qupairs_num;
+    int* order = NULL;
+
+    if (check_all_separable(qubits, qubits_num)) {
+        combined_inputs = combine_qubits(qubits, qubits_num);
+        do_P(combined_inputs, qubits_num, qubits_num);
+        update_qureg_after_applying_gate_on_separable_qubits(qubits, qubits_num, combined_inputs);
     }
     else {
-        apply_controlled_gate_3
+        combined_inputs = combine_mixed_qubits(qubits, qubits_num, &order, &all_involved_qubits_num, &new_qupairs_num);
         do_P(combined_inputs, all_involved_qubits_num, qubits_num);
+        update_qureg_after_applying_gate_on_mixed_qubits(qubits, order, all_involved_qubits_num, new_qupairs_num, combined_inputs);
     }
-    apply_controlled_gate_4
 }
 
 void apply_P_dagger(Qubit** qubits, int qubits_num) {
