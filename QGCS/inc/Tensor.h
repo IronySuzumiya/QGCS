@@ -58,7 +58,5 @@ Matrix outer_product(Ket a, Bra b);
 
 Matrix matrix_Kronecker_product(Matrix a, Matrix b);
 Ket ket_Kronecker_product(Ket a, Ket b);
-int matrix_complex_swap(Matrix m, int r1, int c1, int r2, int c2);
-int ket_complex_swap(Ket v, int x, int y);
 
 #endif

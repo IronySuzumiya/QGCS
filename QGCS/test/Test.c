@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
+#include <Windows.h>
 
 #include "Qubit.h"
 #include "Util.h"
@@ -63,18 +64,25 @@ int test_measurement() {
 }
 
 int test_find_minimum() {
-    int database_size = 64;
+    int database_size = 128;
     int* database = int_memory_get(database_size);
-    printf("Database is: ");
+    printf("Database size: %d\n", database_size);
+    printf("Elements:\n");
     for (int i = 0; i < database_size; ++i) {
         database[i] = rand() % 100;
         printf("%d ", database[i]);
+        if (!((i + 1) % 10)) {
+            printf("\n");
+        }
     }
     printf("\n");
-
+    printf("\n");
+    DWORD start_time = GetTickCount();
     int min_index = find_minimum(database, database_size);
-    printf("Minimum's index is: %d\n", min_index);
-    printf("Minimum's value is: %d\n", database[min_index]);
+    DWORD end_time = GetTickCount();
+    printf("Minimum's index: %d\n", min_index);
+    printf("Minimum's value: %d\n", database[min_index]);
+    printf("Total Execution Time: %d\n", end_time - start_time);
     int_memory_return(database, database_size);
 
     return 0;

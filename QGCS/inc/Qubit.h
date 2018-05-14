@@ -4,13 +4,13 @@
 #include "Tensor.h"
 
 typedef enum _result {
-    Unknown,
+    QUnknown,
     Zero,
     One
 } Result;
 
-#define RESULT_AS_STRING(result) ((result) == Unknown? "Unknown" : (result) == Zero? "Zero" : "One")
-#define RESULT_AS_INT(result) (assert((result) != Unknown), (result) == Zero ? 0 : 1)
+#define RESULT_AS_STRING(result) ((result) == QUnknown? "QUnknown" : (result) == Zero? "Zero" : "One")
+#define RESULT_AS_INT(result) (assert((result) != QUnknown), (result) == Zero ? 0 : 1)
 
 typedef struct _qubit {
     int index;

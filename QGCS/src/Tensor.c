@@ -313,19 +313,3 @@ Ket ket_Kronecker_product(Ket a, Ket b) {
 
     return result;
 }
-
-int matrix_complex_swap(Matrix m, int r1, int c1, int r2, int c2) {
-    Complex temp = matrix_get(m, r1, c1);
-    matrix_set(m, r1, c1, matrix_get(m, r2, c2));
-    matrix_set(m, r2, c2, temp);
-
-    return 0;
-}
-
-int ket_complex_swap(Ket v, int x, int y) {
-    Complex temp = ket_get(v, x);
-    ket_set(v, x, ket_get(v, y));
-    ket_set(v, y, temp);
-
-    return 0;
-}

@@ -131,5 +131,4 @@ void print_qureg(Qureg* qureg) {
         print_qupair_with_indent(qureg->qupairs[i], 1);
         printf("\n");
     }
-    printf("\n");
 }

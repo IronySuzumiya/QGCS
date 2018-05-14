@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <time.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "Algorithm.h"
 #include "Qubit.h"
@@ -108,7 +109,7 @@ int apply_Grover(int database_size, int* marked_indices, int marked_indices_num,
         //print_qureg(qureg);
     }
 
-    print_qureg(qureg);
+    //print_qureg(qureg);
 
     // Measurements
     for (int i = 0; i < qubits_num; ++i) {
@@ -125,6 +126,7 @@ int apply_Grover(int database_size, int* marked_indices, int marked_indices_num,
 int find_minimum(int* database, int database_size) {
     int min_index = rand() % database_size;
     int* marked_elements = int_memory_get(database_size - 1);
+    int total_iteration_num = 0;
 
     while (1) {
         int marked_count = 0;
@@ -135,26 +137,32 @@ int find_minimum(int* database, int database_size) {
             }
         }
         if (marked_count == 0) {
-            return min_index;
+            break;
         }
 
         int iterations_num = (int)ceil(PI / 4.0 * sqrt(database_size * 1.0 / marked_count));
         double successProbability = calculate_success_probability(marked_count, database_size, iterations_num);
-        while(successProbability < 0.2) {
+        while(successProbability < 0.4) {
             iterations_num += 2;
             successProbability = calculate_success_probability(marked_count, database_size, iterations_num);
         }
+        printf("Iteration Number: %d\n", iterations_num);
+        printf("Success Probability: %lf\n", successProbability);
+
         int trial_count = 0;
-        
         while(1) {
             int index = apply_Grover(database_size, marked_elements, marked_count, iterations_num);
+            ++trial_count;
+            assert(trial_count < 1.0 / successProbability * 5);
             if (database[index] < database[min_index]) {
                 min_index = index;
                 break;
             }
-            assert(++trial_count < 1.0 / successProbability * 5);
         }
+        printf("Trial Times: %d\n\n", trial_count);
+        total_iteration_num += trial_count * iterations_num;
     }
+    printf("Total Iteration Number: %d\n\n", total_iteration_num);
     int_memory_return(marked_elements, database_size - 1);
 
     return min_index;

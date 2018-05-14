@@ -14,7 +14,7 @@ Qubit* allocate_qubit() {
     ket_set(qubit->state, 1, complex_rect(0, 0));
     qubit->entangled = 0;
     qubit->measured = 0;
-    qubit->value = Unknown;
+    qubit->value = QUnknown;
 
     return qubit;
 }
