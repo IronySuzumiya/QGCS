@@ -3,6 +3,7 @@
 #include <time.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <Windows.h>
 
 #include "Algorithm.h"
 #include "Qubit.h"
@@ -128,6 +129,7 @@ int find_minimum(int* database, int database_size) {
     int* marked_elements = int_memory_get(database_size - 1);
     int total_iteration_num = 0;
 
+    DWORD start_time = GetTickCount();
     while (1) {
         int marked_count = 0;
         for (int i = 0; i < database_size; ++i) {
@@ -146,8 +148,8 @@ int find_minimum(int* database, int database_size) {
             iterations_num += 2;
             successProbability = calculate_success_probability(marked_count, database_size, iterations_num);
         }
-        printf("Iteration Number: %d\n", iterations_num);
-        printf("Success Probability: %lf\n", successProbability);
+        //printf("Iteration Number: %d\n", iterations_num);
+        //printf("Success Probability: %lf\n", successProbability);
 
         int trial_count = 0;
         while(1) {
@@ -159,10 +161,16 @@ int find_minimum(int* database, int database_size) {
                 break;
             }
         }
-        printf("Trial Times: %d\n\n", trial_count);
+        //printf("Trial Times: %d\n\n", trial_count);
         total_iteration_num += trial_count * iterations_num;
     }
-    printf("Total Iteration Number: %d\n\n", total_iteration_num);
+    DWORD end_time = GetTickCount();
+
+    printf("Minimum's index: %d\n", min_index);
+    printf("Minimum's value: %d\n", database[min_index]);
+    printf("Total iteration number: %d\n", total_iteration_num);
+    printf("Total execution time: %d(ms)\n", end_time - start_time);
+    
     int_memory_return(marked_elements, database_size - 1);
 
     return min_index;
